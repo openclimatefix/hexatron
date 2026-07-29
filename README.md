@@ -31,7 +31,24 @@ later phases.
 
 ## Getting started
 
+Port-forward Airflow, then grab a `session` cookie from your browser's dev tools
+after logging into the Airflow UI:
+
 ```bash
-cp .env.example .env
-cd backend && go build ./...
+cp .env.example .env          # fill in AIRFLOW_SESSION_COOKIE
+set -a && . ./.env && set +a  # Go does not read .env itself
+cd backend && go run ./cmd/hexatron
 ```
+
+This currently prints every DAG Airflow knows about:
+
+```
+STATE   DAG ID                      SCHEDULE             DESCRIPTION
+active  nl-api-check                0 * * * *            General checks on NL API.
+paused  uk-consume-pv               */5 * * * *          Dag to download PV generation data.
+...
+21 DAGs, 20 active
+```
+
+The cookie expires; a stale one fails with `401 Unauthorized (session cookie is
+missing or expired)`.
