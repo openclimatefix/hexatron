@@ -11,6 +11,15 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-sans);
   --font-heading: var(--font-display);
+
+  /* Brand — OCF flame on warm neutrals.
+     `flame` for fills, dots and borders; `flame-text` for small text on light
+     backgrounds, where the brighter flame falls short of WCAG AA. */
+  --color-flame: #f04e23;
+  --color-flame-text: #c2380f;
+  --color-flame-soft: #fdeee8;
+  --color-canvas: #f7f6f3;
+  --color-ink: #16110f;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -127,5 +136,15 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* MatterXH substitutes circled numerals for parenthesised digits, so UI copy
+     like "DAGs (1)" renders as "DAGs ①". Discretionary ligatures are never
+     wanted in interface text. */
+  .font-display {
+    font-variant-ligatures: no-discretionary-ligatures;
+    font-feature-settings:
+      'dlig' 0,
+      'calt' 0;
   }
 }

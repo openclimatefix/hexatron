@@ -1,23 +1,56 @@
 # Single source of truth for business services.
 # Adding a service requires only updating this file.
+#
+# depends_on lists upstream service ids and drives the dashboard's dependency
+# graph. Data flows: forecasts + consumers -> data-platform -> api -> ui.
 
 services:
-  - id: site-forecast
-    name: Site Forecast
+  - id: solar-forecast
+    name: Solar Forecast
     category: Forecast
+    depends_on: []
     dags:
-      - site_forecast
+      - solar_forecast_national
+      - solar_forecast_sites
+
+  - id: wind-forecast
+    name: Wind Forecast
+    category: Forecast
+    depends_on: []
+    dags:
+      - wind_forecast_national
 
   - id: consumer
-    name: Consumer
+    name: Consumers
     category: Consumer
+    depends_on: []
     dags:
       - ecmwf_consumer
       - metoffice_consumer
       - pvlive_consumer
 
   - id: data-platform
-    name: Data Platform
+    name: DP
     category: Platform
+    depends_on:
+      - solar-forecast
+      - wind-forecast
+      - consumer
     dags:
       - save_to_dp
+
+  - id: api
+    name: API
+    category: Application
+    depends_on:
+      - data-platform
+    dags:
+      - api_healthcheck
+
+  # No Airflow DAGs yet — renders as "unknown" until monitoring is added.
+  - id: ui
+    name: UI
+    category: Application
+    depends_on:
+      - api
+    dags: []
