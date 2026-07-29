@@ -1,0 +1,23 @@
+# Single source of truth for business services.
+# Adding a service requires only updating this file.
+
+services:
+  - id: site-forecast
+    name: Site Forecast
+    category: Forecast
+    dags:
+      - site_forecast
+
+  - id: consumer
+    name: Consumer
+    category: Consumer
+    dags:
+      - ecmwf_consumer
+      - metoffice_consumer
+      - pvlive_consumer
+
+  - id: data-platform
+    name: Data Platform
+    category: Platform
+    dags:
+      - save_to_dp

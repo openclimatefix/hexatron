@@ -1,0 +1,12 @@
+.env
+
+# Go
+hexatron
+*.test
+*.out
+
+node_modules/
+dist/
+build/
+
+.DS_Store
