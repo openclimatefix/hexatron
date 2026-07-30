@@ -5,14 +5,17 @@ import (
 	"log"
 	"strings"
 
+	"github.com/openclimatefix/hexatron/backend/clients"
 	"github.com/openclimatefix/hexatron/backend/constants"
+	clientstructs "github.com/openclimatefix/hexatron/backend/structures/clients"
 	"github.com/openclimatefix/hexatron/backend/structures/responses"
 )
 
 // AirflowService is the concrete implementation of the AirflowService interface.
 // Service definitions are loaded dynamically from data/services.yaml.
 type AirflowService struct {
-	registry *ServiceRegistry
+	registry      *ServiceRegistry
+	airflowClient *clients.AirflowClient
 }
 
 // NewAirflowService creates an AirflowService loaded with services from services.yaml.
@@ -21,17 +24,39 @@ func NewAirflowService(configPath string) *AirflowService {
 	if err != nil {
 		log.Fatalf("failed to initialize service registry from %s: %v", configPath, err)
 	}
-	return &AirflowService{registry: registry}
+
+	clientCfg := clientstructs.AirflowClientConfig{
+		BaseURL: constants.AirflowDefaultURL,
+		Cookie:  "",
+	}
+	airflowClient := clients.NewAirflowClient(clientCfg)
+
+	return &AirflowService{
+		registry:      registry,
+		airflowClient: airflowClient,
+	}
+}
+
+// mapAirflowStateToStatus maps an Airflow DAG state string to a service status.
+func mapAirflowStateToStatus(state string) string {
+	switch state {
+	case constants.AirflowStateSuccess:
+		return constants.StatusHealthy
+	case constants.AirflowStateFailed:
+		return constants.StatusFailed
+	default:
+		return constants.StatusUnknown
+	}
 }
 
 // getDAGStatus fetches the status for a given DAG ID.
-// In Phase 2, this will delegate to s.airflowClient.GetLatestDagRun(dagID).
 func (s *AirflowService) getDAGStatus(dagID string) string {
-	// TODO: Phase 2 - Call s.airflowClient.GetLatestDagRun(dagID) and map Airflow state
-	if dagID == "metoffice_consumer" {
-		return constants.StatusFailed
+	airflow_client := s.airflowClient
+	dagRun, err := airflow_client.GetLatestDagRun(dagID)
+	if err == nil && dagRun != nil {
+		return mapAirflowStateToStatus(dagRun.State)
 	}
-	return constants.StatusHealthy
+	return constants.StatusUnknown
 }
 
 // aggregateStatus derives the overall service status from its DAG statuses.
