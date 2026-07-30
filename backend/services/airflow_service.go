@@ -10,19 +10,19 @@ import (
 	"github.com/openclimatefix/hexatron/backend/structures/responses"
 )
 
-// AirflowSvc is the concrete implementation of the AirflowService interface.
+// AirflowService is the concrete implementation of the AirflowService interface.
 // Service definitions are loaded dynamically from data/services.yaml.
-type AirflowSvc struct {
+type AirflowService struct {
 	registry *ServiceRegistry
 }
 
-// NewAirflowSvc creates an AirflowSvc loaded with services from services.yaml.
-func NewAirflowSvc(configPath string) *AirflowSvc {
+// NewAirflowService creates an AirflowService loaded with services from services.yaml.
+func NewAirflowService(configPath string) *AirflowService {
 	registry, err := NewServiceRegistry(configPath)
 	if err != nil {
 		log.Fatalf("failed to initialize service registry from %s: %v", configPath, err)
 	}
-	return &AirflowSvc{registry: registry}
+	return &AirflowService{registry: registry}
 }
 
 // aggregateStatus derives the overall service status from its DAG statuses.
@@ -37,18 +37,18 @@ func aggregateStatus(dags []responses.DAGStatus) string {
 }
 
 // ListServices returns all configured services loaded from services.yaml.
-func (s *AirflowSvc) ListServices(search, category string) responses.ServiceListResponse {
+func (s *AirflowService) ListServices(search, category string) responses.ServiceListResponse {
 	result := make(responses.ServiceListResponse, 0)
-	for _, svc := range s.registry.All() {
-		if search != "" && !strings.Contains(strings.ToLower(svc.Name), strings.ToLower(search)) {
+	for _, service := range s.registry.All() {
+		if search != "" && !strings.Contains(strings.ToLower(service.Name), strings.ToLower(search)) {
 			continue
 		}
-		if category != "" && !strings.EqualFold(svc.Category, category) {
+		if category != "" && !strings.EqualFold(service.Category, category) {
 			continue
 		}
 
-		dagStatuses := make([]responses.DAGStatus, 0, len(svc.DAGIDs))
-		for _, dagID := range svc.DAGIDs {
+		dagStatuses := make([]responses.DAGStatus, 0, len(service.DAGIDs))
+		for _, dagID := range service.DAGIDs {
 			dagStatuses = append(dagStatuses, responses.DAGStatus{
 				DAGID:  dagID,
 				Status: mock.GetDAGStatus(dagID),
@@ -56,8 +56,8 @@ func (s *AirflowSvc) ListServices(search, category string) responses.ServiceList
 		}
 
 		result = append(result, responses.ServiceSummary{
-			ID:     svc.ID,
-			Name:   svc.Name,
+			ID:     service.ID,
+			Name:   service.Name,
 			Status: aggregateStatus(dagStatuses),
 		})
 	}
@@ -65,14 +65,14 @@ func (s *AirflowSvc) ListServices(search, category string) responses.ServiceList
 }
 
 // GetServiceByID returns the detail response for a single service from services.yaml.
-func (s *AirflowSvc) GetServiceByID(serviceID string) (responses.ServiceDetailResponse, bool) {
-	svc, found := s.registry.ByID(serviceID)
+func (s *AirflowService) GetServiceByID(serviceID string) (responses.ServiceDetailResponse, bool) {
+	service, found := s.registry.ByID(serviceID)
 	if !found {
 		return responses.ServiceDetailResponse{}, false
 	}
 
-	dagStatuses := make([]responses.DAGStatus, 0, len(svc.DAGIDs))
-	for _, dagID := range svc.DAGIDs {
+	dagStatuses := make([]responses.DAGStatus, 0, len(service.DAGIDs))
+	for _, dagID := range service.DAGIDs {
 		dagStatuses = append(dagStatuses, responses.DAGStatus{
 			DAGID:  dagID,
 			Status: mock.GetDAGStatus(dagID),
@@ -80,8 +80,8 @@ func (s *AirflowSvc) GetServiceByID(serviceID string) (responses.ServiceDetailRe
 	}
 
 	return responses.ServiceDetailResponse{
-		ID:     svc.ID,
-		Name:   svc.Name,
+		ID:     service.ID,
+		Name:   service.Name,
 		Status: aggregateStatus(dagStatuses),
 		DAGs:   dagStatuses,
 	}, true

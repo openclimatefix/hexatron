@@ -5,10 +5,15 @@ import (
 	"github.com/openclimatefix/hexatron/backend/structures/responses"
 )
 
-// HealthSvc is the concrete implementation of the HealthService interface.
-type HealthSvc struct{}
+// HealthService is the concrete implementation of the HealthService interface.
+type HealthService struct{}
+
+// NewHealthService returns a new HealthService instance.
+func NewHealthService() *HealthService {
+	return &HealthService{}
+}
 
 // GetHealth returns the current operational health of the Hexatron API.
-func (s *HealthSvc) GetHealth() responses.HealthResponse {
+func (s *HealthService) GetHealth() responses.HealthResponse {
 	return responses.HealthResponse{Status: constants.StatusHealthy}
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/openclimatefix/hexatron/backend/utils"
 )
 
-var healthSvc = &services.HealthSvc{}
+var healthService = services.NewHealthService()
 
 // HealthCheck handles GET /health.
 //
@@ -16,6 +16,6 @@ var healthSvc = &services.HealthSvc{}
 //
 // Returns a 200 with { "status": "healthy" } when the API is operational.
 func HealthCheck(w http.ResponseWriter, r *http.Request) {
-	response := healthSvc.GetHealth()
+	response := healthService.GetHealth()
 	utils.WriteJSON(w, http.StatusOK, response)
 }

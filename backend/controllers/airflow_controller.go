@@ -12,7 +12,7 @@ import (
 	"github.com/openclimatefix/hexatron/backend/utils"
 )
 
-var airflowSvc = services.NewAirflowSvc("data/services.yaml")
+var airflowService = services.NewAirflowService("data/services.yaml")
 
 // ListServices handles GET /services.
 //
@@ -28,7 +28,7 @@ func ListServices(w http.ResponseWriter, r *http.Request) {
 		Category: r.URL.Query().Get("category"),
 	}
 
-	response := airflowSvc.ListServices(req.Search, req.Category)
+	response := airflowService.ListServices(req.Search, req.Category)
 	utils.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -43,7 +43,7 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		ServiceID: strings.TrimPrefix(r.URL.Path, constants.ServiceByIDPath),
 	}
 
-	response, found := airflowSvc.GetServiceByID(req.ServiceID)
+	response, found := airflowService.GetServiceByID(req.ServiceID)
 	if !found {
 		utils.WriteError(w, http.StatusNotFound, constants.ErrServiceNotFound+": "+req.ServiceID)
 		return
