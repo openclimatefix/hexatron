@@ -1,44 +1,18 @@
-// Package mock defines the in-memory mock data structures used in Phase 1.
-// In Phase 2, replace MockServiceStore with live Airflow API calls.
+// Package mock defines mock DAG health statuses used prior to Phase 2 Airflow REST API integration.
 package mock
 
-import "github.com/openclimatefix/hexatron/backend/structures/responses"
+import "github.com/openclimatefix/hexatron/backend/constants"
 
-// MockService represents a single business service entry in the mock dataset.
-// Its shape mirrors the structure defined in data/services.yaml.
-type MockService struct {
-	ID       string
-	Name     string
-	Category string
-	DAGs     []responses.DAGStatus
+// mockDAGOverrides holds explicit DAG status overrides for testing (e.g. failing DAGs).
+var mockDAGOverrides = map[string]string{
+	"metoffice_consumer": constants.StatusFailed,
 }
 
-// MockServiceStore is the in-memory dataset backing all service endpoints.
-var MockServiceStore = []MockService{
-	{
-		ID:       "site-forecast",
-		Name:     "Site Forecast",
-		Category: "Forecast",
-		DAGs: []responses.DAGStatus{
-			{DAGID: "site_forecast", Status: "healthy"},
-		},
-	},
-	{
-		ID:       "consumer",
-		Name:     "Consumer",
-		Category: "Consumer",
-		DAGs: []responses.DAGStatus{
-			{DAGID: "ecmwf_consumer", Status: "healthy"},
-			{DAGID: "metoffice_consumer", Status: "failed"},
-			{DAGID: "pvlive_consumer", Status: "healthy"},
-		},
-	},
-	{
-		ID:       "data-platform",
-		Name:     "Data Platform",
-		Category: "Platform",
-		DAGs: []responses.DAGStatus{
-			{DAGID: "save_to_dp", Status: "healthy"},
-		},
-	},
+// GetDAGStatus returns the mock health status for a given DAG ID.
+// If the DAG is not in the override map, it defaults to "healthy".
+func GetDAGStatus(dagID string) string {
+	if status, exists := mockDAGOverrides[dagID]; exists {
+		return status
+	}
+	return constants.StatusHealthy
 }

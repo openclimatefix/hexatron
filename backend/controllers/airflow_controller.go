@@ -12,7 +12,7 @@ import (
 	"github.com/openclimatefix/hexatron/backend/utils"
 )
 
-var airflowSvc = &services.AirflowSvc{}
+var airflowSvc = services.NewAirflowSvc("data/services.yaml")
 
 // ListServices handles GET /services.
 //
@@ -23,7 +23,6 @@ var airflowSvc = &services.AirflowSvc{}
 //   - ?search=<string>   case-insensitive name filter
 //   - ?category=<string> exact category match
 func ListServices(w http.ResponseWriter, r *http.Request) {
-	
 	req := requests.GetServicesRequestPayload{
 		Search:   r.URL.Query().Get("search"),
 		Category: r.URL.Query().Get("category"),

@@ -1,8 +1,8 @@
 // Package services implements the business logic layer.
-// In Phase 2, these services will delegate to the Airflow client.
 package services
 
 import (
+	"log"
 	"strings"
 
 	"github.com/openclimatefix/hexatron/backend/constants"
@@ -11,7 +11,19 @@ import (
 )
 
 // AirflowSvc is the concrete implementation of the AirflowService interface.
-type AirflowSvc struct{}
+// Service definitions are loaded dynamically from data/services.yaml.
+type AirflowSvc struct {
+	registry *ServiceRegistry
+}
+
+// NewAirflowSvc creates an AirflowSvc loaded with services from services.yaml.
+func NewAirflowSvc(configPath string) *AirflowSvc {
+	registry, err := NewServiceRegistry(configPath)
+	if err != nil {
+		log.Fatalf("failed to initialize service registry from %s: %v", configPath, err)
+	}
+	return &AirflowSvc{registry: registry}
+}
 
 // aggregateStatus derives the overall service status from its DAG statuses.
 // Returns "failed" if any DAG is failed or unknown; otherwise "healthy".
@@ -24,38 +36,53 @@ func aggregateStatus(dags []responses.DAGStatus) string {
 	return constants.StatusHealthy
 }
 
-// ListServices returns all services, optionally filtered by name search and category.
+// ListServices returns all configured services loaded from services.yaml.
 func (s *AirflowSvc) ListServices(search, category string) responses.ServiceListResponse {
 	result := make(responses.ServiceListResponse, 0)
-	for _, svc := range mock.MockServiceStore {
+	for _, svc := range s.registry.All() {
 		if search != "" && !strings.Contains(strings.ToLower(svc.Name), strings.ToLower(search)) {
 			continue
 		}
 		if category != "" && !strings.EqualFold(svc.Category, category) {
 			continue
 		}
+
+		dagStatuses := make([]responses.DAGStatus, 0, len(svc.DAGIDs))
+		for _, dagID := range svc.DAGIDs {
+			dagStatuses = append(dagStatuses, responses.DAGStatus{
+				DAGID:  dagID,
+				Status: mock.GetDAGStatus(dagID),
+			})
+		}
+
 		result = append(result, responses.ServiceSummary{
 			ID:     svc.ID,
 			Name:   svc.Name,
-			Status: aggregateStatus(svc.DAGs),
+			Status: aggregateStatus(dagStatuses),
 		})
 	}
 	return result
 }
 
-// GetServiceByID returns the detail response for a single service.
-// Returns false if no service with the given ID exists.
+// GetServiceByID returns the detail response for a single service from services.yaml.
 func (s *AirflowSvc) GetServiceByID(serviceID string) (responses.ServiceDetailResponse, bool) {
-	for _, svc := range mock.MockServiceStore {
-		if svc.ID != serviceID {
-			continue
-		}
-		return responses.ServiceDetailResponse{
-			ID:     svc.ID,
-			Name:   svc.Name,
-			Status: aggregateStatus(svc.DAGs),
-			DAGs:   svc.DAGs,
-		}, true
+	svc, found := s.registry.ByID(serviceID)
+	if !found {
+		return responses.ServiceDetailResponse{}, false
 	}
-	return responses.ServiceDetailResponse{}, false
+
+	dagStatuses := make([]responses.DAGStatus, 0, len(svc.DAGIDs))
+	for _, dagID := range svc.DAGIDs {
+		dagStatuses = append(dagStatuses, responses.DAGStatus{
+			DAGID:  dagID,
+			Status: mock.GetDAGStatus(dagID),
+		})
+	}
+
+	return responses.ServiceDetailResponse{
+		ID:     svc.ID,
+		Name:   svc.Name,
+		Status: aggregateStatus(dagStatuses),
+		DAGs:   dagStatuses,
+	}, true
 }
