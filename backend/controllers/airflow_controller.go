@@ -12,7 +12,7 @@ import (
 	"github.com/openclimatefix/hexatron/backend/utils"
 )
 
-var airflowService = services.NewAirflowService("data/services.yaml")
+var airflowService = services.NewAirflowService(constants.ServicesConfigPath)
 
 // ListServices handles GET /services.
 //

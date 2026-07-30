@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/structures/mock"
 	"github.com/openclimatefix/hexatron/backend/structures/responses"
 )
 
@@ -23,6 +22,16 @@ func NewAirflowService(configPath string) *AirflowService {
 		log.Fatalf("failed to initialize service registry from %s: %v", configPath, err)
 	}
 	return &AirflowService{registry: registry}
+}
+
+// getDAGStatus fetches the status for a given DAG ID.
+// In Phase 2, this will delegate to s.airflowClient.GetLatestDagRun(dagID).
+func (s *AirflowService) getDAGStatus(dagID string) string {
+	// TODO: Phase 2 - Call s.airflowClient.GetLatestDagRun(dagID) and map Airflow state
+	if dagID == "metoffice_consumer" {
+		return constants.StatusFailed
+	}
+	return constants.StatusHealthy
 }
 
 // aggregateStatus derives the overall service status from its DAG statuses.
@@ -51,7 +60,7 @@ func (s *AirflowService) ListServices(search, category string) responses.Service
 		for _, dagID := range service.DAGIDs {
 			dagStatuses = append(dagStatuses, responses.DAGStatus{
 				DAGID:  dagID,
-				Status: mock.GetDAGStatus(dagID),
+				Status: s.getDAGStatus(dagID),
 			})
 		}
 
@@ -75,7 +84,7 @@ func (s *AirflowService) GetServiceByID(serviceID string) (responses.ServiceDeta
 	for _, dagID := range service.DAGIDs {
 		dagStatuses = append(dagStatuses, responses.DAGStatus{
 			DAGID:  dagID,
-			Status: mock.GetDAGStatus(dagID),
+			Status: s.getDAGStatus(dagID),
 		})
 	}
 

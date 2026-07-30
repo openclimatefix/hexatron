@@ -31,7 +31,6 @@ func (c *AirflowClient) GetHealth() error {
 }
 
 // TODO: GetLatestDagRun fetches the most recent run for the given DAG ID.
-
 func (c *AirflowClient) GetLatestDagRun(dagID string) error {
 	return nil
 }
