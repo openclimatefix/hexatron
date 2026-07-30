@@ -100,7 +100,8 @@ func (s *AirflowService) ListServices(search, category string) responses.Service
 
 // GetServiceByID returns the detail response for a single service from services.yaml.
 func (s *AirflowService) GetServiceByID(serviceID string) (responses.ServiceDetailResponse, bool) {
-	service, found := s.registry.ByID(serviceID)
+	getRegistery := s.registry
+	service, found := getRegistery.ByID(serviceID)
 	if !found {
 		return responses.ServiceDetailResponse{}, false
 	}

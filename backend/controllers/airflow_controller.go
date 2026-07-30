@@ -39,13 +39,10 @@ func ListServices(w http.ResponseWriter, r *http.Request) {
 //
 // Returns 404 if the serviceId is not found.
 func GetService(w http.ResponseWriter, r *http.Request) {
-	req := requests.GetServiceDetailRequestPayload{
-		ServiceID: strings.TrimPrefix(r.URL.Path, constants.ServiceByIDPath),
-	}
-
-	response, found := airflowService.GetServiceByID(req.ServiceID)
+	serviceID := strings.TrimPrefix(r.URL.Path, constants.ServiceByIDPath)
+	response, found := airflowService.GetServiceByID(serviceID)
 	if !found {
-		utils.WriteError(w, http.StatusNotFound, constants.ErrServiceNotFound+": "+req.ServiceID)
+		utils.WriteError(w, http.StatusNotFound, constants.ErrServiceNotFound+": "+serviceID)
 		return
 	}
 
