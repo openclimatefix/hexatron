@@ -6,9 +6,11 @@ package constants
 // Airflow: several OCF DAGs are mid-run at any moment. Collapsing them into
 // Unknown would report healthy services as broken.
 const (
-	StatusHealthy = "healthy"
-	StatusFailed  = "failed"
-	StatusRunning = "running"
-	StatusQueued  = "queued"
-	StatusUnknown = "unknown"
+	StatusHealthy  = "healthy"
+	StatusFailed   = "failed"
+	StatusRunning  = "running"
+	StatusQueued   = "queued"
+	StatusUnknown  = "unknown"
+	StatusPaused   = "paused"
+	StatusDegraded = "degraded"
 )

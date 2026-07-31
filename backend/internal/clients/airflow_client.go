@@ -234,3 +234,60 @@ func (c *AirflowClient) DAGURL(dagID string) string {
 	ref := &url.URL{Path: "/dags/" + url.PathEscape(dagID) + "/grid"}
 	return c.baseURL.ResolveReference(ref).String()
 }
+
+// GetRecentDagRuns fetches up to limit recent runs for a given DAG ID.
+func (c *AirflowClient) GetRecentDagRuns(ctx context.Context, dagID string, limit int) ([]airflowmodels.DagRun, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	query := url.Values{}
+	query.Set("order_by", "-execution_date")
+	query.Set("limit", strconv.Itoa(limit))
+
+	var list airflowmodels.DagRunList
+	path := constants.AirflowDagsPath + "/" + url.PathEscape(dagID) + "/dagRuns"
+
+	if err := c.get(ctx, path, query, &list); err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: %s", ErrDAGNotFound, dagID)
+		}
+		return nil, fmt.Errorf("recent runs for %s: %w", dagID, err)
+	}
+
+	return list.DagRuns, nil
+}
+
+// GetRecentDagRunsForDAGs fetches recent runs for multiple DAGs concurrently.
+func (c *AirflowClient) GetRecentDagRunsForDAGs(ctx context.Context, dagIDs []string, limit int) (map[string][]airflowmodels.DagRun, error) {
+	runsMap := make(map[string][]airflowmodels.DagRun, len(dagIDs))
+	errs := make([]error, len(dagIDs))
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, constants.AirflowMaxConcurrentRequests)
+
+	for i, dagID := range dagIDs {
+		wg.Add(1)
+		go func(idx int, id string) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			runs, err := c.GetRecentDagRuns(ctx, id, limit)
+			if err != nil && !errors.Is(err, ErrDAGNotFound) {
+				errs[idx] = err
+				return
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			runsMap[id] = runs
+		}(i, dagID)
+	}
+	wg.Wait()
+
+	return runsMap, errors.Join(errs...)
+}
+
