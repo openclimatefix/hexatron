@@ -7,10 +7,5 @@ type AirflowClientConfig struct {
 	Cookie  string
 }
 
-// TODO : CHECK API Respone and match this struct fields.
-// DAGRun represents a single DAG run object returned by the Airflow API.
-type DAGRun struct {
-	DAGRunID string `json:"dag_run_id"`
-	State    string `json:"state"`
-}
-
+// The DAGRun placeholder that lived here has been replaced by
+// models/airflow.DagRun, which matches the real Airflow API response.

@@ -1,24 +1,62 @@
 # Single source of truth for business services.
-# Adding a service requires only updating this file.
+#
+# Each service groups the Airflow DAGs that have to be working for that service
+# to be considered healthy. Adding a service requires only updating this file.
+#
+# The dag values must match Airflow dag_ids exactly. Hexatron warns at startup
+# about configured DAGs that Airflow does not know about, and about DAGs Airflow
+# has that no service claims.
 
 services:
-  - id: forecasts
-    name: Forecasts
-    category: Forecasts
+  - id: site-forecast
+    name: Site Forecast
+    category: Forecast
     dags:
-      - uk_forecast
-      - in_forecasts
+      - uk-forecast-site
+      - nl-forecast
 
+  - id: national-forecast
+    name: National Forecast
+    category: Forecast
+    dags:
+      - uk-forecast-gsp
+
+  - id: cloudcasting
+    name: Cloudcasting
+    category: Forecast
+    dags:
+      - uk-forecast-clouds
+      - uk-analysis-clouds
+
+  # UK and NL consumers sit under one service for now; split them later by
+  # adding a second entry and moving the nl-* DAGs to it.
   - id: consumer
     name: Consumer
     category: Consumer
     dags:
-      - ecmwf_consumer
-      - metoffice_consumer
-      - pvlive_consumer
+      - uk-consume-neso
+      - uk-consume-nwp
+      - uk-consume-pv
+      - uk-consume-pvlive-dayafter
+      - uk-consume-pvlive-intraday
+      - uk-consume-sat
+      - uk-consume-sat-v1
+      - nl-consume-ned-nl
+      - nl-consume-ned-nl-forecast
+      - nl-consume-nwp
+
+  - id: quartz
+    name: Quartz API
+    category: API
+    dags:
+      - uk-api-quartz-national-gsp-check
+      - uk-api-site-check
+      - nl-api-check
 
   - id: data-platform
     name: Data Platform
     category: Platform
     dags:
-      - save_to_dp
+      - uk-manage-clean-up-logs
+      - uk-manage-elb
+      - uk-manage-sitedb-cleanup

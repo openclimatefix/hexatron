@@ -10,15 +10,19 @@ one question quickly: **"Is everything running as expected?"**
 
 ```
 backend/                        Go module
-├── cmd/hexatron/               Entrypoint
+├── cmd/server/                 Entrypoint
 ├── internal/
-│   ├── api/                    REST layer (GET /services, GET /services/{id})
-│   ├── clients/
-│   │   ├── airflow/            Airflow REST API client
-│   │   └── cloudwatch/         CloudWatch client (future)
-│   ├── services/               Service registry + health aggregation
-│   └── models/                 Shared types
-└── config/                     services.yaml — single source of truth
+│   ├── routes/                 Route registration
+│   ├── controllers/            HTTP handlers, one per endpoint
+│   ├── services/               Business logic: registry + health aggregation
+│   ├── clients/                Airflow + CloudWatch API clients
+│   ├── models/                 Domain types (models/airflow: API shapes)
+│   ├── structures/             Config, request and response payloads
+│   ├── constants/              Shared constants
+│   ├── middleware/             CORS, logging, recovery, request ID
+│   └── utils/                  Shared helpers
+├── data/                       services.yaml — single source of truth
+└── tests/                      Test suite
 
 frontend/                       Dashboard UI
 docs/                           Design and implementation notes
@@ -26,7 +30,8 @@ docs/                           Design and implementation notes
 
 ## Status
 
-Controller logic implemented with mock responses. Airflow integration follows in Phase 2.
+Serving live Airflow data. Service health is aggregated from the latest DAG run
+of every DAG listed in `data/services.yaml`.
 
 ## Getting started
 
@@ -36,25 +41,28 @@ after logging into the Airflow UI:
 ```bash
 cp .env.example .env          # fill in AIRFLOW_SESSION_COOKIE
 set -a && . ./.env && set +a  # Go does not read .env itself
-cd backend && go run ./cmd/hexatron
-```
-
-This currently prints every DAG Airflow knows about:
-
-```
-STATE   DAG ID                      SCHEDULE             DESCRIPTION
-active  nl-api-check                0 * * * *            General checks on NL API.
-paused  uk-consume-pv               */5 * * * *          Dag to download PV generation data.
-...
-21 DAGs, 20 active
-```
-
-The cookie expires; a stale one fails with `401 Unauthorized (session cookie is
-missing or expired)`.
-cp .env.example .env
-cd backend && go run main.go
+cd backend && make run        # or: go run ./cmd/server
 # Server starts on http://localhost:8080
 ```
+
+The cookie expires; a stale one makes requests fail with `502` and
+`{"error": "airflow session cookie is missing or expired"}`.
+
+Run the tests with `make test`. They use a fake Airflow server, so no live
+Airflow or cookie is needed.
+
+### Configuration
+
+| Variable                 | Default              | Purpose                     |
+|--------------------------|----------------------|-----------------------------|
+| `AIRFLOW_BASE_URL`       | `http://127.0.0.1:38000` | Airflow root URL        |
+| `AIRFLOW_SESSION_COOKIE` | —                    | Session cookie (required)   |
+| `PORT`                   | `:8080`              | Listen address              |
+| `SERVICES_CONFIG_PATH`   | `data/services.yaml` | Service definitions         |
+
+At startup Hexatron logs any drift between `services.yaml` and Airflow — DAGs
+configured but missing, and DAGs Airflow runs that no service claims. Drift is a
+warning, not a fatal error; a missing DAG reports as `unknown`.
 
 ---
 
@@ -77,9 +85,10 @@ Returns the health status of all configured business services.
 
 ```json
 [
-  { "id": "site-forecast", "name": "Site Forecast", "status": "healthy" },
-  { "id": "consumer",      "name": "Consumer",      "status": "failed"  },
-  { "id": "data-platform", "name": "Data Platform", "status": "healthy" }
+  { "id": "site-forecast", "name": "Site Forecast", "category": "Forecast", "status": "running" },
+  { "id": "cloudcasting",  "name": "Cloudcasting",  "category": "Forecast", "status": "failed"  },
+  { "id": "consumer",      "name": "Consumer",      "category": "Consumer", "status": "failed"  },
+  { "id": "data-platform", "name": "Data Platform", "category": "Platform", "status": "healthy" }
 ]
 ```
 
@@ -105,18 +114,42 @@ Returns a single service with the health status of each underlying DAG.
 
 **Response**
 
+Each DAG entry carries the context needed to act on a failure without a second
+request: the schedule, whether the DAG is paused, its last run, and a deep link
+into Airflow.
+
 ```json
 {
-  "id":     "consumer",
-  "name":   "Consumer",
-  "status": "failed",
+  "id":       "cloudcasting",
+  "name":     "Cloudcasting",
+  "category": "Forecast",
+  "status":   "failed",
   "dags": [
-    { "dag_id": "ecmwf_consumer",     "status": "healthy" },
-    { "dag_id": "metoffice_consumer", "status": "failed"  },
-    { "dag_id": "pvlive_consumer",    "status": "healthy" }
+    {
+      "dag_id":      "uk-forecast-clouds",
+      "name":        "uk-forecast-clouds",
+      "status":      "healthy",
+      "is_paused":   false,
+      "schedule":    "12,42 * * * *",
+      "last_run":    { "run_id": "scheduled__…", "state": "success",
+                       "start_date": "…", "end_date": "…" },
+      "airflow_url": "http://localhost:38000/dags/uk-forecast-clouds/grid"
+    },
+    {
+      "dag_id":      "uk-analysis-clouds",
+      "name":        "uk-analysis-clouds",
+      "status":      "failed",
+      "is_paused":   false,
+      "schedule":    "0 6 * * *",
+      "last_run":    { "run_id": "scheduled__…", "state": "failed",
+                       "start_date": "…", "end_date": "…" },
+      "airflow_url": "http://localhost:38000/dags/uk-analysis-clouds/grid"
+    }
   ]
 }
 ```
+
+`last_run` is absent for a DAG that has never run.
 
 **Status Codes**
 
@@ -143,24 +176,46 @@ curl http://localhost:8080/services/data-platform
 
 ### Status Values
 
-| Value     | Meaning                                     |
-|-----------|---------------------------------------------|
-| `healthy` | All DAGs in the service ran successfully    |
-| `failed`  | One or more DAGs in the service have failed |
-| `unknown` | DAG status could not be determined          |
+Derived from the **latest run** of each DAG.
 
-> A service is `failed` if **any** of its DAGs are `failed` or `unknown`.
+| Value     | DAG meaning                          | Service meaning              |
+|-----------|--------------------------------------|------------------------------|
+| `healthy` | Latest run succeeded                 | All DAGs healthy             |
+| `failed`  | Latest run failed or upstream-failed | Any DAG failed               |
+| `running` | Latest run is in progress            | Any DAG running, none failed |
+| `queued`  | Latest run is queued                 | Any DAG queued, none above   |
+| `unknown` | Never run, or DAG missing            | Any DAG unknown, none above  |
+
+Precedence when aggregating a service: `failed` → `running` → `queued` →
+`unknown` → `healthy`. Failure outranks everything, so a broken DAG is never
+masked by a busy one.
 
 All responses include `Content-Type: application/json`.
 
 ---
 
-### Mock Data (Current Phase)
+### Configured Services
 
-Defined in `backend/internal/api/controller/services.go`.
+Defined in [`backend/data/services.yaml`](backend/data/services.yaml), which
+groups the 21 DAGs in the OCF Airflow deployment into six services.
 
-| Service ID      | Category | DAGs                                                                                                              | Status    |
-|-----------------|----------|-------------------------------------------------------------------------------------------------------------------|-----------|
-| `site-forecast` | Forecast | `site_forecast` → healthy                                                                                         | `healthy` |
-| `consumer`      | Consumer | `ecmwf_consumer` → healthy, `metoffice_consumer` → **failed**, `pvlive_consumer` → healthy                       | `failed`  |
-| `data-platform` | Platform | `save_to_dp` → healthy                                                                                            | `healthy` |
+| Service ID          | Category | DAGs |
+|---------------------|----------|------|
+| `site-forecast`     | Forecast | `uk-forecast-site`, `nl-forecast` |
+| `national-forecast` | Forecast | `uk-forecast-gsp` |
+| `cloudcasting`      | Forecast | `uk-forecast-clouds`, `uk-analysis-clouds` |
+| `consumer`          | Consumer | `uk-consume-neso`, `uk-consume-nwp`, `uk-consume-pv`, `uk-consume-pvlive-dayafter`, `uk-consume-pvlive-intraday`, `uk-consume-sat`, `uk-consume-sat-v1`, `nl-consume-ned-nl`, `nl-consume-ned-nl-forecast`, `nl-consume-nwp` |
+| `quartz`            | API      | `uk-api-quartz-national-gsp-check`, `uk-api-site-check`, `nl-api-check` |
+| `data-platform`     | Platform | `uk-manage-clean-up-logs`, `uk-manage-elb`, `uk-manage-sitedb-cleanup` |
+
+The grouping is a first pass over the DAG naming convention — adjust it in the
+YAML, which is the only place service membership is defined.
+
+### Known limitations
+
+- **No caching.** Each request re-queries Airflow: one `/dags` call plus one call
+  per DAG, fanned out 8 at a time. Fine locally, worth caching (Phase 7) before
+  a dashboard auto-refreshes against shared Airflow.
+- **Latest run only.** A DAG that failed repeatedly and is now retrying reports
+  `running`, not `failed`. Reading back to the last *completed* run would fix
+  this.

@@ -3,8 +3,10 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 
+	"github.com/openclimatefix/hexatron/backend/internal/clients"
 	"github.com/openclimatefix/hexatron/backend/internal/constants"
 	"github.com/openclimatefix/hexatron/backend/internal/models"
 	"github.com/openclimatefix/hexatron/backend/internal/services"
@@ -33,10 +35,15 @@ func NewAirflowController(cfg *configstructs.Config) *AirflowController {
 //   - ?search=<string>   case-insensitive name filter
 //   - ?category=<string> exact category match
 func (c *AirflowController) ListServices(w http.ResponseWriter, r *http.Request) {
-	summaries := c.airflowService.ListServices(
+	summaries, err := c.airflowService.ListServices(
+		r.Context(),
 		r.URL.Query().Get("search"),
 		r.URL.Query().Get("category"),
 	)
+	if err != nil {
+		writeUpstreamError(w, r, err)
+		return
+	}
 	utils.WriteJSON(w, http.StatusOK, toServiceListResponse(summaries))
 }
 
@@ -47,12 +54,29 @@ func (c *AirflowController) ListServices(w http.ResponseWriter, r *http.Request)
 // Returns 404 if the service is not found.
 func (c *AirflowController) GetService(w http.ResponseWriter, r *http.Request) {
 	serviceID := r.PathValue("id")
-	detail, found := c.airflowService.GetServiceByID(serviceID)
+
+	detail, found, err := c.airflowService.GetServiceByID(r.Context(), serviceID)
 	if !found {
 		utils.WriteError(w, http.StatusNotFound, constants.ErrServiceNotFound+": "+serviceID)
 		return
 	}
+	if err != nil {
+		writeUpstreamError(w, r, err)
+		return
+	}
 	utils.WriteJSON(w, http.StatusOK, toServiceDetailResponse(detail))
+}
+
+// writeUpstreamError converts an Airflow failure into a response. The detail
+// stays in the log; the client gets enough to know whose fault it is.
+func writeUpstreamError(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("%s %s: %v", r.Method, r.URL.Path, err)
+
+	if clients.IsUnauthorized(err) {
+		utils.WriteError(w, http.StatusBadGateway, constants.ErrAirflowUnauthorized)
+		return
+	}
+	utils.WriteError(w, http.StatusBadGateway, constants.ErrAirflowUnreachable)
 }
 
 // toServiceListResponse maps domain ServiceSummary slice to the HTTP response type.
@@ -60,9 +84,10 @@ func toServiceListResponse(summaries []models.ServiceSummary) responses.ServiceL
 	result := make(responses.ServiceListResponse, len(summaries))
 	for i, s := range summaries {
 		result[i] = responses.ServiceSummary{
-			ID:     s.ID,
-			Name:   s.Name,
-			Status: s.Status,
+			ID:       s.ID,
+			Name:     s.Name,
+			Category: s.Category,
+			Status:   s.Status,
 		}
 	}
 	return result
@@ -73,14 +98,27 @@ func toServiceDetailResponse(detail models.ServiceDetail) responses.ServiceDetai
 	dags := make([]responses.DAGStatus, len(detail.DAGs))
 	for i, d := range detail.DAGs {
 		dags[i] = responses.DAGStatus{
-			DAGID:  d.DAGID,
-			Status: d.Status,
+			DAGID:      d.DAGID,
+			Name:       d.Name,
+			Status:     d.Status,
+			IsPaused:   d.IsPaused,
+			Schedule:   d.Schedule,
+			AirflowURL: d.AirflowURL,
+		}
+		if d.LastRun != nil {
+			dags[i].LastRun = &responses.RunSummary{
+				RunID:     d.LastRun.RunID,
+				State:     d.LastRun.State,
+				StartDate: d.LastRun.StartDate,
+				EndDate:   d.LastRun.EndDate,
+			}
 		}
 	}
 	return responses.ServiceDetailResponse{
-		ID:     detail.ID,
-		Name:   detail.Name,
-		Status: detail.Status,
-		DAGs:   dags,
+		ID:       detail.ID,
+		Name:     detail.Name,
+		Category: detail.Category,
+		Status:   detail.Status,
+		DAGs:     dags,
 	}
 }
