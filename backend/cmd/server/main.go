@@ -11,7 +11,7 @@ import (
 
 func main() {
 	cfg := config.Load()
-	router := routes.NewRouter()
+	router := routes.NewRouter(cfg)
 
 	fmt.Printf("Hexatron backend listening on http://localhost%s\n", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, router); err != nil {

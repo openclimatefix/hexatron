@@ -19,16 +19,12 @@ type AirflowService struct {
 }
 
 // NewAirflowService creates an AirflowService loaded with services from services.yaml.
-func NewAirflowService(configPath string) *AirflowService {
+func NewAirflowService(configPath string, clientCfg clientstructs.AirflowClientConfig) *AirflowService {
 	registry, err := NewServiceRegistry(configPath)
 	if err != nil {
 		log.Fatalf("failed to initialize service registry from %s: %v", configPath, err)
 	}
 
-	clientCfg := clientstructs.AirflowClientConfig{
-		BaseURL: constants.AirflowDefaultURL,
-		Cookie:  "",
-	}
 	airflowClient := clients.NewAirflowClient(clientCfg)
 
 	return &AirflowService{
@@ -51,8 +47,8 @@ func mapAirflowStateToStatus(state string) string {
 
 // getDAGStatus fetches the status for a given DAG ID.
 func (s *AirflowService) getDAGStatus(dagID string) string {
-	airflow_client := s.airflowClient
-	dagRun, err := airflow_client.GetLatestDagRun(dagID)
+	airflowClient := s.airflowClient
+	dagRun, err := airflowClient.GetLatestDagRun(dagID)
 	if err == nil && dagRun != nil {
 		return mapAirflowStateToStatus(dagRun.State)
 	}
@@ -100,8 +96,8 @@ func (s *AirflowService) ListServices(search, category string) responses.Service
 
 // GetServiceByID returns the detail response for a single service from services.yaml.
 func (s *AirflowService) GetServiceByID(serviceID string) (responses.ServiceDetailResponse, bool) {
-	getRegistery := s.registry
-	service, found := getRegistery.ByID(serviceID)
+	registry := s.registry
+	service, found := registry.ByID(serviceID)
 	if !found {
 		return responses.ServiceDetailResponse{}, false
 	}

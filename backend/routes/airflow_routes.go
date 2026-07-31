@@ -5,13 +5,15 @@ import (
 
 	"github.com/openclimatefix/hexatron/backend/constants"
 	"github.com/openclimatefix/hexatron/backend/controllers"
+	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
 )
 
 // RegisterAirflowRoutes attaches the service/DAG health endpoints to mux.
 //
-//	GET /services      → controllers.ListServices
-//	GET /services/{id} → controllers.GetService
-func RegisterAirflowRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET "+constants.ServicesPath, controllers.ListServices)
-	mux.HandleFunc("GET "+constants.ServiceByIDPath, controllers.GetService)
+//	GET /services      → airflowController.ListServices
+//	GET /services/{id} → airflowController.GetService
+func RegisterAirflowRoutes(mux *http.ServeMux, cfg *configstructs.Config) {
+	airflowController := controllers.NewAirflowController(cfg)
+	mux.HandleFunc("GET "+constants.ServicesPath, airflowController.ListServices)
+	mux.HandleFunc("GET "+constants.ServiceByIDPath, airflowController.GetService)
 }

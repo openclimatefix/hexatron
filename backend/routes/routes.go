@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/openclimatefix/hexatron/backend/middleware"
+	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
 )
 
 // NewRouter creates and returns the root HTTP handler with all routes and
@@ -13,10 +14,10 @@ import (
 // Middleware stack (outermost → innermost):
 //
 //	CORS → RequestID → Logging → Recovery → mux
-func NewRouter() http.Handler {
+func NewRouter(cfg *configstructs.Config) http.Handler {
 	mux := http.NewServeMux()
 
-	RegisterAirflowRoutes(mux)
+	RegisterAirflowRoutes(mux, cfg)
 	RegisterHealthRoutes(mux)
 
 	// Apply middleware stack – outermost runs first.
