@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/openclimatefix/hexatron/backend/internal/constants"
@@ -205,7 +206,11 @@ func (c *AirflowClient) DAGURL(dagID string) string {
 		return ""
 	}
 	ref := &url.URL{Path: "/dags/" + url.PathEscape(dagID) + "/grid"}
-	return c.baseURL.ResolveReference(ref).String()
+	u := c.baseURL.ResolveReference(ref)
+	if strings.Contains(u.Host, constants.DockerInternalHost) {
+		u.Host = strings.Replace(u.Host, constants.DockerInternalHost, constants.PublicResponseHost, 1)
+	}
+	return u.String()
 }
 
 // GetRecentDagRuns fetches up to limit recent runs for a given DAG ID.

@@ -5,6 +5,9 @@ const (
 	AirflowBaseURLEnv = "AIRFLOW_BASE_URL"
 	AirflowCookieEnv  = "AIRFLOW_SESSION_COOKIE"
 	AirflowDefaultURL = "http://127.0.0.1:38000"
+
+	DockerInternalHost = "host.docker.internal"
+	PublicResponseHost = "127.0.0.1"
 )
 
 // Airflow DAG run states returned by the Airflow REST API.
