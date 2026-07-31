@@ -103,6 +103,7 @@ func (s *AirflowService) ListServices(ctx context.Context, search, category stri
 		}
 
 		svcResp := s.buildServiceResponse(svc, dagIDs, snap)
+		svcResp.DAGs = nil
 		result = append(result, svcResp)
 	}
 

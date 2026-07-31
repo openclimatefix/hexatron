@@ -55,7 +55,7 @@ type ServiceResponse struct {
 	Category  string         `json:"category"`
 	Status    string         `json:"status"`
 	DependsOn []string       `json:"depends_on"`
-	DAGs      []DAGDetail    `json:"dags"`
+	DAGs      []DAGDetail    `json:"dags,omitempty"`
 	Metrics   ServiceMetrics `json:"metrics"`
 	Note      *string        `json:"note"`
 }
