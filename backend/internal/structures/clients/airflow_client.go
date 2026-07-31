@@ -6,6 +6,3 @@ type AirflowClientConfig struct {
 	BaseURL string
 	Cookie  string
 }
-
-// The DAGRun placeholder that lived here has been replaced by
-// models/airflow.DagRun, which matches the real Airflow API response.

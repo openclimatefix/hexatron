@@ -2,11 +2,7 @@ package airflow
 
 import "time"
 
-// DagRun represents a single execution instance of an Airflow DAG, as returned
-// by GET /api/v1/dags/{dag_id}/dagRuns.
-//
-// Dates are pointers because Airflow returns null for them: a queued run has no
-// start date, and a running run has no end date.
+// DagRun represents a single execution instance of an Airflow DAG.
 type DagRun struct {
 	DagRunID string `json:"dag_run_id"`
 	DAGID    string `json:"dag_id"`

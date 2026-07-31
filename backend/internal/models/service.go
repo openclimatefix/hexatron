@@ -7,10 +7,6 @@ import (
 )
 
 // Service represents a business service defined in data/services.yaml.
-//
-// A service does not name its DAGs. It carries glob patterns matched against
-// the dag_ids Airflow reports, so the set of DAGs behind a service follows
-// Airflow rather than this config drifting out of date behind it.
 type Service struct {
 	ID       string `yaml:"id"`
 	Name     string `yaml:"name"`
@@ -19,14 +15,11 @@ type Service struct {
 	// DependsOn lists upstream service ids, for the dashboard's dependency graph.
 	DependsOn []string `yaml:"depends_on"`
 
-	// DAGPatterns are globs over dag_id. Empty means the service has no DAGs in
-	// Airflow yet, which is a legitimate state, not a misconfiguration.
+	// DAGPatterns are globs over dag_id; empty means the service has no DAGs yet.
 	DAGPatterns []string `yaml:"dag_patterns"`
 }
 
-// MatchDAGs returns the dag ids this service claims out of every dag id Airflow
-// reported, in the order given. A DAG matching several patterns is returned
-// once; services may legitimately claim the same DAG as each other.
+// MatchDAGs returns the dag ids this service claims, in the order given, deduplicated.
 func (s Service) MatchDAGs(dagIDs []string) []string {
 	claimed := make([]string, 0, len(dagIDs))
 	for _, dagID := range dagIDs {
@@ -40,9 +33,7 @@ func (s Service) MatchDAGs(dagIDs []string) []string {
 	return claimed
 }
 
-// MatchDAGPattern returns the dag ids a single pattern claims. A pattern that
-// claims nothing is the DAG-membership equivalent of a typo'd dag id, which is
-// why config drift reports on it separately.
+// MatchDAGPattern returns the dag ids a single pattern claims.
 func MatchDAGPattern(pattern string, dagIDs []string) []string {
 	matched := make([]string, 0, len(dagIDs))
 	for _, dagID := range dagIDs {
@@ -53,40 +44,32 @@ func MatchDAGPattern(pattern string, dagIDs []string) []string {
 	return matched
 }
 
-// ValidateDAGPattern reports whether a pattern is a well-formed glob. A
-// malformed one never matches, so the registry rejects it at load rather than
-// letting a service silently lose its DAGs.
+// ValidateDAGPattern reports whether a pattern is a well-formed glob.
 func ValidateDAGPattern(pattern string) error {
 	_, err := path.Match(pattern, "")
 	return err
 }
 
-// matchesDAGPattern reports whether pattern claims dagID. Patterns are globs:
-// "uk-forecast-*" claims uk-forecast-site, and because * does not span the
-// whole id, "nl-forecast" does not claim nl-consume-ned-nl-forecast.
+// matchesDAGPattern reports whether the glob pattern claims dagID.
 func matchesDAGPattern(pattern, dagID string) bool {
 	matched, err := path.Match(pattern, dagID)
 	return err == nil && matched
 }
 
-// DAGStatus represents the computed runtime status of a single DAG, along with
-// the context needed to act on it: whether scheduling is paused, when it last
-// ran, and where to open it in Airflow.
+// DAGStatus represents the computed runtime status of a single DAG.
 type DAGStatus struct {
 	DAGID  string
 	Name   string
 	Status string
 
-	// IsPaused reports that scheduling is switched off, so Status reflects a run
-	// that may be old. Schedule is the DAG's cron expression.
+	// IsPaused reports that scheduling is off; Schedule is the DAG's cron expression.
 	IsPaused bool
 	Schedule string
 
 	// LastRun describes the most recent run, nil if the DAG has never run.
 	LastRun *RunSummary
 
-	// AirflowURL deep-links to the DAG in Airflow, which stays the source of
-	// truth for logs and task failures.
+	// AirflowURL deep-links to the DAG in Airflow.
 	AirflowURL string
 }
 
@@ -106,8 +89,7 @@ type ServiceSummary struct {
 	Status   string
 }
 
-// ServiceDetail represents the full computed status detail of a service,
-// including individual DAG statuses.
+// ServiceDetail represents the full status detail of a service, including its DAGs.
 type ServiceDetail struct {
 	ID       string
 	Name     string

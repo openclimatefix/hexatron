@@ -14,17 +14,12 @@ import (
 
 // fakeAirflowDAG describes one DAG the fake Airflow should serve.
 type fakeAirflowDAG struct {
-	// State is the latest DAG run state ("success", "failed", "running", ...).
-	// An empty State means the DAG exists but has never run.
+	// State is the latest DAG run state; empty means the DAG has never run.
 	State    string
 	IsPaused bool
 }
 
-// startFakeAirflow serves canned Airflow REST responses for the given DAGs, so
-// tests exercise the real client and service code without a live Airflow.
-//
-// It rejects requests that arrive without the session cookie, which keeps the
-// client's authentication wiring under test.
+// startFakeAirflow serves canned Airflow REST responses for the given DAGs.
 func startFakeAirflow(t *testing.T, dags map[string]fakeAirflowDAG) *httptest.Server {
 	t.Helper()
 

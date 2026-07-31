@@ -4,9 +4,6 @@ package responses
 import "time"
 
 // ServiceSummary is a single item in the GET /services response.
-//
-//	{ "id": "solar-forecast", "name": "Solar Forecast",
-//	  "category": "Forecast", "status": "healthy" }
 type ServiceSummary struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -15,26 +12,9 @@ type ServiceSummary struct {
 }
 
 // ServiceListResponse is the full response body for GET /services.
-//
-//	[
-//	  { "id": "solar-forecast", "name": "Solar Forecast", "status": "healthy" },
-//	  { "id": "consumer",       "name": "Consumers",      "status": "failed"  }
-//	]
 type ServiceListResponse []ServiceSummary
 
-// DAGStatus is an individual DAG entry inside a service detail response. It
-// carries enough context to act on a failure without a second request: the
-// schedule, whether the DAG is paused, its last run, and a link into Airflow.
-//
-//	{
-//	  "dag_id":   "uk-analysis-clouds",
-//	  "name":     "uk-analysis-clouds",
-//	  "status":   "failed",
-//	  "is_paused": false,
-//	  "schedule": "0 6 * * *",
-//	  "last_run": { "run_id": "...", "state": "failed", ... },
-//	  "airflow_url": "http://.../dags/uk-analysis-clouds/grid"
-//	}
+// DAGStatus is an individual DAG entry inside a service detail response.
 type DAGStatus struct {
 	DAGID  string `json:"dag_id"`
 	Name   string `json:"name,omitempty"`
@@ -56,13 +36,6 @@ type RunSummary struct {
 }
 
 // ServiceDetailResponse is the full response body for GET /services/{serviceId}.
-//
-//	{
-//	  "id":     "consumer",
-//	  "name":   "Consumers",
-//	  "status": "failed",
-//	  "dags":   [ ... ]
-//	}
 type ServiceDetailResponse struct {
 	ID       string      `json:"id"`
 	Name     string      `json:"name"`

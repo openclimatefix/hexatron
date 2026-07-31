@@ -16,15 +16,13 @@ import (
 	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
-// AirflowService is the concrete implementation of the AirflowService interface.
-// Service definitions are loaded dynamically from data/services.yaml.
+// AirflowService computes service health from Airflow, using data/services.yaml.
 type AirflowService struct {
 	registry      *ServiceRegistry
 	airflowClient *clients.AirflowClient
 }
 
 // NewAirflowService creates an AirflowService using application config.
-// It maps AirflowBaseURL and AirflowCookie from cfg to the client internally.
 func NewAirflowService(cfg *configstructs.Config) *AirflowService {
 	registry, err := NewServiceRegistry(cfg.ServicesConfigPath)
 	if err != nil {
@@ -42,22 +40,16 @@ func NewAirflowService(cfg *configstructs.Config) *AirflowService {
 	}
 }
 
-// snapshot is one consistent read of Airflow: every DAG it reports, plus the
-// latest run of those a caller cares about. Building it once per request keeps
-// a response internally consistent and bounds the number of Airflow calls.
+// snapshot is one read of Airflow: its DAGs, plus the latest run of the ones a caller wants.
 type snapshot struct {
 	meta map[string]airflowmodels.DAG
 	runs map[string]*airflowmodels.DagRun
 
-	// dagIDs is every dag_id Airflow reported, sorted. Service membership is
-	// resolved against this rather than a list in services.yaml, so Airflow is
-	// the only place DAGs are named.
+	// dagIDs is every dag_id Airflow reported, sorted.
 	dagIDs []string
 }
 
-// snapshot reads the DAG list first, then the latest run of whichever DAGs pick
-// selects from it. Runs are the expensive half — one call per DAG — so pick
-// exists to keep a single-service request from fetching the whole deployment.
+// snapshot lists the DAGs, then fetches the latest run of whichever DAGs pick selects.
 func (s *AirflowService) snapshot(ctx context.Context, pick func(dagIDs []string) []string) (*snapshot, error) {
 	dags, err := s.airflowClient.ListDAGs(ctx)
 	if err != nil {
@@ -70,8 +62,7 @@ func (s *AirflowService) snapshot(ctx context.Context, pick func(dagIDs []string
 		meta[dag.DAGID] = dag
 		dagIDs = append(dagIDs, dag.DAGID)
 	}
-	// Airflow's ordering is not part of its contract; sorting keeps the DAGs in
-	// a response stable from one request to the next.
+	// Airflow's ordering is not part of its contract, so sort for a stable response.
 	sort.Strings(dagIDs)
 
 	runs, err := s.airflowClient.GetLatestDagRuns(ctx, pick(dagIDs))
@@ -98,14 +89,7 @@ func MapAirflowStateToStatus(state string) string {
 	}
 }
 
-// AggregateStatus derives the overall service status from its DAG statuses.
-// Failure outranks everything so a broken DAG is never masked by a busy one:
-//
-//	any failed  -> failed
-//	any running -> running
-//	any queued  -> queued
-//	any unknown -> unknown
-//	otherwise   -> healthy
+// AggregateStatus derives a service status from its DAGs: failed > running > queued > unknown > healthy.
 func AggregateStatus(dags []models.DAGStatus) string {
 	if len(dags) == 0 {
 		return constants.StatusUnknown
@@ -138,8 +122,7 @@ func AggregateStatus(dags []models.DAGStatus) string {
 	}
 }
 
-// buildDAGStatuses builds a []models.DAGStatus for the given DAG IDs from a
-// snapshot of Airflow.
+// buildDAGStatuses builds the DAG statuses for the given DAG IDs from a snapshot.
 func (s *AirflowService) buildDAGStatuses(dagIDs []string, snap *snapshot) []models.DAGStatus {
 	statuses := make([]models.DAGStatus, 0, len(dagIDs))
 
@@ -150,8 +133,7 @@ func (s *AirflowService) buildDAGStatuses(dagIDs []string, snap *snapshot) []mod
 			AirflowURL: s.airflowClient.DAGURL(dagID),
 		}
 
-		// Every dagID here was matched against this same snapshot, so the metadata
-		// is always present.
+		// Every dagID came from this snapshot, so its metadata is always present.
 		meta := snap.meta[dagID]
 		status.Name = meta.Name()
 		status.IsPaused = meta.IsPaused
@@ -172,9 +154,7 @@ func (s *AirflowService) buildDAGStatuses(dagIDs []string, snap *snapshot) []mod
 	return statuses
 }
 
-// claimedDAGIDs returns the DAGs at least one service claims, deduplicated,
-// given every dag id Airflow reported. Services may legitimately share a DAG,
-// and a DAG no service claims is never fetched.
+// claimedDAGIDs returns the DAGs at least one service claims, deduplicated.
 func (s *AirflowService) claimedDAGIDs(dagIDs []string) []string {
 	seen := make(map[string]struct{}, len(dagIDs))
 	out := make([]string, 0, len(dagIDs))
@@ -191,8 +171,7 @@ func (s *AirflowService) claimedDAGIDs(dagIDs []string) []string {
 	return out
 }
 
-// ListServices returns all configured services matching the optional search and
-// category filters. The DAG breakdown is omitted; use GetServiceByID for that.
+// ListServices returns all configured services matching the optional search and category filters.
 func (s *AirflowService) ListServices(ctx context.Context, search, category string) ([]models.ServiceSummary, error) {
 	snap, err := s.snapshot(ctx, s.claimedDAGIDs)
 	if err != nil {
@@ -220,9 +199,7 @@ func (s *AirflowService) ListServices(ctx context.Context, search, category stri
 	return result, nil
 }
 
-// GetServiceByID returns the detail for a single service from services.yaml.
-// The boolean reports whether the service is configured at all, which the
-// controller turns into a 404.
+// GetServiceByID returns the detail for a single service, and whether it is configured.
 func (s *AirflowService) GetServiceByID(ctx context.Context, serviceID string) (models.ServiceDetail, bool, error) {
 	service, found := s.registry.ByID(serviceID)
 	if !found {
@@ -245,15 +222,7 @@ func (s *AirflowService) GetServiceByID(ctx context.Context, serviceID string) (
 	}, true, nil
 }
 
-// ConfigDrift reports mismatches between services.yaml and Airflow: patterns
-// that claim no DAG at all, reported as "service-id: pattern", and DAGs Airflow
-// runs that no service claims. Both are silent gaps in a dashboard, so they are
-// worth surfacing.
-//
-// A pattern claiming nothing is the equivalent of the typo'd dag id it replaced
-// — a renamed DAG leaves its service quietly empty. A service with no patterns
-// at all is not drift: wind-forecast and ui are waiting on DAGs that do not
-// exist yet.
+// ConfigDrift reports patterns claiming no DAG, as "service-id: pattern", and unclaimed DAGs.
 func (s *AirflowService) ConfigDrift(ctx context.Context) (unmatched, unclaimed []string, err error) {
 	dags, err := s.airflowClient.ListDAGs(ctx)
 	if err != nil {

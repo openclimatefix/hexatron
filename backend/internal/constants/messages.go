@@ -4,9 +4,7 @@ package constants
 const (
 	ErrServiceNotFound = "service not found"
 
-	// Airflow upstream failures. The dashboard shows these instead of painting
-	// every service red, so a connectivity problem is not mistaken for an
-	// outage in the services themselves.
+	// Airflow upstream failures, shown instead of marking every service failed.
 	ErrAirflowUnauthorized = "airflow session cookie is missing or expired"
 	ErrAirflowUnreachable  = "could not reach airflow"
 )

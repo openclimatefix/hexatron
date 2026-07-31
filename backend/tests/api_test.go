@@ -15,7 +15,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Ensure working directory is backend root so relative data paths resolve correctly
+	// Run from the backend root so relative data paths resolve.
 	if _, err := os.Stat("data/services.yaml"); os.IsNotExist(err) {
 		if _, err := os.Stat("../data/services.yaml"); err == nil {
 			_ = os.Chdir("..")
@@ -24,8 +24,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// newTestRouter builds the real router against a fake Airflow, so the API tests
-// exercise the full stack without needing a live Airflow.
+// newTestRouter builds the real router against a fake Airflow.
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 
@@ -172,8 +171,7 @@ func TestGetServiceByIDNotFoundEndpoint(t *testing.T) {
 	}
 }
 
-// TestAirflowUnreachableReturnsBadGateway checks that a broken Airflow surfaces
-// as an upstream error, not as every service reporting failed.
+// TestAirflowUnreachableReturnsBadGateway checks a broken Airflow surfaces as an upstream error.
 func TestAirflowUnreachableReturnsBadGateway(t *testing.T) {
 	router := routes.NewRouter(&configstructs.Config{
 		Addr:               ":8080",

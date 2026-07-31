@@ -39,10 +39,7 @@ func TestServiceRegistry(t *testing.T) {
 	}
 }
 
-// TestServiceRegistryRejectsBadConfig covers the two ways services.yaml can be
-// wrong without anything failing at request time: a pattern that cannot compile
-// silently claims no DAGs, and a dangling depends_on draws an edge on the
-// dashboard to a service that does not exist.
+// TestServiceRegistryRejectsBadConfig covers the services.yaml errors that would otherwise pass silently.
 func TestServiceRegistryRejectsBadConfig(t *testing.T) {
 	cases := []struct {
 		name string
@@ -80,9 +77,7 @@ services:
 	}
 }
 
-// TestMatchDAGsIsAnchored guards the failure the glob patterns are designed to
-// avoid: nl-consume-ned-nl-forecast ends in "-forecast" but is a consumer DAG,
-// so a forecast service must not claim it.
+// TestMatchDAGsIsAnchored checks a forecast service does not claim nl-consume-ned-nl-forecast.
 func TestMatchDAGsIsAnchored(t *testing.T) {
 	airflowDAGs := []string{
 		"nl-consume-ned-nl-forecast",
@@ -100,8 +95,7 @@ func TestMatchDAGsIsAnchored(t *testing.T) {
 		t.Errorf("MatchDAGs() = %v, want %v", got, want)
 	}
 
-	// A service with no patterns has no DAGs, which aggregates to unknown rather
-	// than silently claiming everything.
+	// A service with no patterns has no DAGs and aggregates to unknown.
 	empty := models.Service{ID: "wind-forecast"}
 	if got := empty.MatchDAGs(airflowDAGs); len(got) != 0 {
 		t.Errorf("a service with no patterns claimed %v", got)
@@ -111,11 +105,7 @@ func TestMatchDAGsIsAnchored(t *testing.T) {
 	}
 }
 
-// ocfAirflowDAGs is the DAG list the OCF Airflow deployment served when the
-// patterns in data/services.yaml were written. The patterns are matched against
-// whatever Airflow reports at runtime; this snapshot only pins down how that
-// deployment's DAGs are expected to route, so a pattern edit that quietly
-// re-homes a DAG fails here.
+// ocfAirflowDAGs is a snapshot of the DAGs the OCF Airflow deployment serves.
 var ocfAirflowDAGs = []string{
 	"nl-api-check",
 	"nl-consume-ned-nl",
@@ -270,8 +260,7 @@ func TestAggregateStatus(t *testing.T) {
 	}
 }
 
-// testServicesYAML defines two services whose patterns claim four DAGs between
-// them, enough to cover a healthy service and a service broken by a single DAG.
+// testServicesYAML defines two services whose patterns claim four DAGs between them.
 const testServicesYAML = `
 services:
   - id: forecast
@@ -321,8 +310,7 @@ func TestListServicesAggregatesRealRunStates(t *testing.T) {
 		got[s.ID] = s.Status
 	}
 
-	// A running DAG must not be reported as failed: that was the behaviour when
-	// running collapsed into unknown.
+	// A running DAG must not be reported as failed.
 	if got["forecast"] != constants.StatusRunning {
 		t.Errorf("forecast: expected %q, got %q", constants.StatusRunning, got["forecast"])
 	}
@@ -418,8 +406,7 @@ func TestGetServiceByIDNotFound(t *testing.T) {
 	}
 }
 
-// TestExpiredCookieSurfacesError checks that an authentication failure is
-// reported as an error rather than being flattened into "everything is broken".
+// TestExpiredCookieSurfacesError checks an authentication failure is reported as an error.
 func TestExpiredCookieSurfacesError(t *testing.T) {
 	svc := newTestService(t, "")
 

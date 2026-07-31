@@ -1,8 +1,4 @@
 // Package clients is the only component aware of Airflow APIs.
-//
-// Everything above this package works in terms of the models it returns, never
-// raw JSON. Authentication is a session cookie carried on every request, which
-// is a development-only arrangement — production will use a service account.
 package clients
 
 import (
@@ -21,8 +17,7 @@ import (
 	clientstructs "github.com/openclimatefix/hexatron/backend/internal/structures/clients"
 )
 
-// ErrDAGNotFound means Airflow does not know a DAG, which usually indicates
-// services.yaml references one that has been renamed or removed.
+// ErrDAGNotFound means Airflow does not know the DAG.
 var ErrDAGNotFound = errors.New("airflow: dag not found")
 
 // AirflowClient communicates with the Airflow REST API.
@@ -32,9 +27,7 @@ type AirflowClient struct {
 	httpClient *http.Client
 }
 
-// NewAirflowClient returns a new AirflowClient using the given config. An
-// unparseable base URL is tolerated here so construction stays infallible;
-// requests then fail with a clear error.
+// NewAirflowClient returns a new AirflowClient using the given config.
 func NewAirflowClient(cfg clientstructs.AirflowClientConfig) *AirflowClient {
 	baseURL, err := url.Parse(cfg.BaseURL)
 	if err != nil {
@@ -48,8 +41,7 @@ func NewAirflowClient(cfg clientstructs.AirflowClientConfig) *AirflowClient {
 	}
 }
 
-// APIError is an error response from the Airflow REST API. A stale or missing
-// session cookie surfaces here as a 401.
+// APIError is an error response from the Airflow REST API.
 type APIError struct {
 	StatusCode int    `json:"status"`
 	Title      string `json:"title"`
@@ -67,9 +59,7 @@ func (e *APIError) Error() string {
 	return msg
 }
 
-// IsUnauthorized reports whether err is an Airflow 401, i.e. the session cookie
-// needs refreshing. Callers use it to tell "Airflow says no" apart from "this
-// DAG is genuinely failing".
+// IsUnauthorized reports whether err is an Airflow 401.
 func IsUnauthorized(err error) bool {
 	var apiErr *APIError
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized
@@ -106,9 +96,7 @@ func (c *AirflowClient) get(ctx context.Context, path string, query url.Values, 
 	return nil
 }
 
-// newAPIError converts a non-200 response into an *APIError, falling back to the
-// raw body when Airflow does not return its usual JSON error envelope (a proxy
-// or login redirect, say).
+// newAPIError converts a non-200 response into an *APIError.
 func newAPIError(resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 
@@ -125,8 +113,7 @@ func newAPIError(resp *http.Response) error {
 	return apiErr
 }
 
-// GetHealth calls GET /api/v1/health on the Airflow REST API. A nil error means
-// Airflow is reachable and the session cookie is accepted.
+// GetHealth calls GET /api/v1/health on the Airflow REST API.
 func (c *AirflowClient) GetHealth(ctx context.Context) error {
 	var out map[string]any
 	return c.get(ctx, constants.AirflowHealthPath, nil, &out)
@@ -148,17 +135,14 @@ func (c *AirflowClient) ListDAGs(ctx context.Context) ([]airflowmodels.DAG, erro
 
 		all = append(all, page.DAGs...)
 
-		// A short page means Airflow has nothing more to give, even if
-		// total_entries disagrees. Checking it guards against looping forever.
+		// An empty page ends pagination even if total_entries disagrees.
 		if len(page.DAGs) == 0 || len(all) >= page.TotalEntries {
 			return all, nil
 		}
 	}
 }
 
-// GetLatestDagRun fetches the most recent run for the given DAG ID. A DAG that
-// exists but has never run yields (nil, nil); an unknown DAG yields
-// ErrDAGNotFound.
+// GetLatestDagRun fetches the most recent run for the given DAG ID, or (nil, nil) if it has never run.
 func (c *AirflowClient) GetLatestDagRun(ctx context.Context, dagID string) (*airflowmodels.DagRun, error) {
 	query := url.Values{}
 	query.Set("order_by", "-execution_date")
@@ -181,14 +165,7 @@ func (c *AirflowClient) GetLatestDagRun(ctx context.Context, dagID string) (*air
 	return &list.DagRuns[0], nil
 }
 
-// GetLatestDagRuns fetches the most recent run of each DAG concurrently. DAGs
-// that have never run, and DAGs Airflow does not know, map to a nil run so the
-// caller can render them as unknown rather than failing the whole dashboard.
-//
-// Airflow's batch endpoint (POST /dags/~/dagRuns/list) cannot do this job: its
-// order_by sorts the combined result set, so a single busy DAG crowds every
-// other DAG off the page. One small request per DAG is the reliable way to get
-// latest-per-DAG.
+// GetLatestDagRuns fetches the most recent run of each DAG concurrently, mapping unknown DAGs to nil.
 func (c *AirflowClient) GetLatestDagRuns(ctx context.Context, dagIDs []string) (map[string]*airflowmodels.DagRun, error) {
 	runs := make(map[string]*airflowmodels.DagRun, len(dagIDs))
 	errs := make([]error, len(dagIDs))
@@ -218,15 +195,11 @@ func (c *AirflowClient) GetLatestDagRuns(ctx context.Context, dagIDs []string) (
 	}
 	wg.Wait()
 
-	// Errors are returned alongside the runs that did succeed: an expired cookie
-	// fails every DAG and is worth surfacing, but one flaky request should not
-	// discard the rest.
+	// Errors are returned alongside the runs that did succeed.
 	return runs, errors.Join(errs...)
 }
 
-// DAGURL is a deep link to a DAG's grid view in the Airflow UI. Airflow remains
-// the source of truth for logs, task failures and retry history, so Hexatron
-// hands users off to it rather than reimplementing it.
+// DAGURL is a deep link to a DAG's grid view in the Airflow UI.
 func (c *AirflowClient) DAGURL(dagID string) string {
 	if c.baseURL == nil {
 		return ""

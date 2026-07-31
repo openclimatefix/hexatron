@@ -26,11 +26,9 @@ const (
 const AirflowSessionCookieName = "session"
 
 const (
-	// AirflowPageSize is the per-request page size for list endpoints. Airflow
-	// caps this at 100 by default.
+	// AirflowPageSize is the per-request page size for list endpoints.
 	AirflowPageSize = 100
 
-	// AirflowMaxConcurrentRequests bounds the per-DAG fan-out so a large
-	// services.yaml cannot flood Airflow's webserver.
+	// AirflowMaxConcurrentRequests bounds the per-DAG fan-out.
 	AirflowMaxConcurrentRequests = 8
 )

@@ -34,9 +34,7 @@ func NewServiceRegistry(configPath string) (*ServiceRegistry, error) {
 	return &ServiceRegistry{services: cfg.Services}, nil
 }
 
-// validate rejects a config that would otherwise fail silently at runtime: a
-// duplicate id shadowing a service, a depends_on edge pointing at nothing, or a
-// malformed glob that would quietly claim no DAGs at all.
+// validate rejects duplicate ids, dangling depends_on edges and malformed globs.
 func validate(svcs []models.Service) error {
 	ids := make(map[string]struct{}, len(svcs))
 

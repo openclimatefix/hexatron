@@ -9,9 +9,7 @@ type DAG struct {
 	DisplayName string `json:"dag_display_name"`
 	Description string `json:"description"`
 
-	// IsActive reports whether the DAG is still present in the DAG bag; it goes
-	// false when a DAG file is deleted. IsPaused reports whether scheduling is
-	// switched off. Neither says anything about a run currently in flight.
+	// IsActive is whether the DAG file still exists; IsPaused is whether scheduling is off.
 	IsActive        bool `json:"is_active"`
 	IsPaused        bool `json:"is_paused"`
 	HasImportErrors bool `json:"has_import_errors"`
@@ -29,9 +27,7 @@ func (d DAG) Name() string {
 	return d.DAGID
 }
 
-// Schedule is Airflow's polymorphic schedule_interval field. Every OCF DAG
-// currently uses the CronExpression variant, which carries a cron string in
-// Value; the TimeDelta variant uses the duration fields instead.
+// Schedule is Airflow's polymorphic schedule_interval field: a cron string in Value, or a duration.
 type Schedule struct {
 	Type  string `json:"__type"`
 	Value string `json:"value"`

@@ -14,7 +14,7 @@ import (
 	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
-// startupTimeout bounds the config check so a slow Airflow cannot delay startup.
+// startupTimeout bounds the startup config check.
 const startupTimeout = 30 * time.Second
 
 func main() {
@@ -29,13 +29,7 @@ func main() {
 	}
 }
 
-// logConfigDrift warns about services.yaml disagreeing with Airflow: DAG
-// patterns that match nothing, and DAGs Airflow runs that no service claims.
-//
-// It is a warning rather than a fatal error — one stale pattern should not stop
-// the dashboard reporting on everything else — but it is the quickest way to
-// catch a service that has quietly lost its DAGs, which otherwise just shows as
-// "unknown".
+// logConfigDrift warns when services.yaml and Airflow disagree.
 func logConfigDrift(cfg *configstructs.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
