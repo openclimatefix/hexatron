@@ -2,11 +2,12 @@
 # Adding a service requires only updating this file.
 
 services:
-  - id: site-forecast
-    name: Site Forecast
-    category: Forecast
+  - id: forecasts
+    name: Forecasts
+    category: Forecasts
     dags:
-      - site_forecast
+      - uk_forecast
+      - in_forecasts
 
   - id: consumer
     name: Consumer
