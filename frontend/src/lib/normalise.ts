@@ -1,3 +1,4 @@
+import { SERVICE_STATUSES } from '@/lib/status'
 import type { Dag, DagRun, DagRunState, Metrics, Service, ServiceStatus } from '@/lib/types'
 
 /**
@@ -8,14 +9,6 @@ import type { Dag, DagRun, DagRunState, Metrics, Service, ServiceStatus } from '
  * `@/lib/types`.
  */
 
-const SERVICE_STATUSES: ServiceStatus[] = [
-  'healthy',
-  'degraded',
-  'down',
-  'running',
-  'paused',
-  'unknown',
-]
 const RUN_STATES: DagRunState[] = ['queued', 'running', 'success', 'failed']
 
 /**
