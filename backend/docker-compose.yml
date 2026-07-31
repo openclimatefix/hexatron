@@ -6,6 +6,18 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./data
+          target: /app/data
+        - action: rebuild
+          path: .
+          ignore:
+            - data/
+

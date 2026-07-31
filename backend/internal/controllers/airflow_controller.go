@@ -7,10 +7,8 @@ import (
 
 	"github.com/openclimatefix/hexatron/backend/internal/clients"
 	"github.com/openclimatefix/hexatron/backend/internal/constants"
-	"github.com/openclimatefix/hexatron/backend/internal/models"
 	"github.com/openclimatefix/hexatron/backend/internal/services"
 	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
-	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 	"github.com/openclimatefix/hexatron/backend/internal/utils"
 )
 
@@ -37,7 +35,7 @@ func (c *AirflowController) ListServices(w http.ResponseWriter, r *http.Request)
 		writeUpstreamError(w, r, err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, toServiceListResponse(summaries))
+	utils.WriteJSON(w, http.StatusOK, summaries)
 }
 
 // GetService handles GET /services/{id}, returning 404 if the service is not found.
@@ -53,7 +51,7 @@ func (c *AirflowController) GetService(w http.ResponseWriter, r *http.Request) {
 		writeUpstreamError(w, r, err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, toServiceDetailResponse(detail))
+	utils.WriteJSON(w, http.StatusOK, detail)
 }
 
 // writeUpstreamError logs an Airflow failure and converts it into a 502 response.
@@ -65,48 +63,4 @@ func writeUpstreamError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	utils.WriteError(w, http.StatusBadGateway, constants.ErrAirflowUnreachable)
-}
-
-// toServiceListResponse maps domain ServiceSummary slice to the HTTP response type.
-func toServiceListResponse(summaries []models.ServiceSummary) responses.ServiceListResponse {
-	result := make(responses.ServiceListResponse, len(summaries))
-	for i, s := range summaries {
-		result[i] = responses.ServiceSummary{
-			ID:       s.ID,
-			Name:     s.Name,
-			Category: s.Category,
-			Status:   s.Status,
-		}
-	}
-	return result
-}
-
-// toServiceDetailResponse maps a domain ServiceDetail to the HTTP response type.
-func toServiceDetailResponse(detail models.ServiceDetail) responses.ServiceDetailResponse {
-	dags := make([]responses.DAGStatus, len(detail.DAGs))
-	for i, d := range detail.DAGs {
-		dags[i] = responses.DAGStatus{
-			DAGID:      d.DAGID,
-			Name:       d.Name,
-			Status:     d.Status,
-			IsPaused:   d.IsPaused,
-			Schedule:   d.Schedule,
-			AirflowURL: d.AirflowURL,
-		}
-		if d.LastRun != nil {
-			dags[i].LastRun = &responses.RunSummary{
-				RunID:     d.LastRun.RunID,
-				State:     d.LastRun.State,
-				StartDate: d.LastRun.StartDate,
-				EndDate:   d.LastRun.EndDate,
-			}
-		}
-	}
-	return responses.ServiceDetailResponse{
-		ID:       detail.ID,
-		Name:     detail.Name,
-		Category: detail.Category,
-		Status:   detail.Status,
-		DAGs:     dags,
-	}
 }

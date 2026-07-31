@@ -9,6 +9,7 @@ import (
 	"github.com/openclimatefix/hexatron/backend/internal/models"
 	"github.com/openclimatefix/hexatron/backend/internal/services"
 	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 )
 
 func TestServiceRegistry(t *testing.T) {
@@ -365,7 +366,7 @@ func TestGetServiceByIDReturnsDAGDetail(t *testing.T) {
 		t.Fatalf("expected 2 DAGs, got %d", len(detail.DAGs))
 	}
 
-	byID := make(map[string]models.DAGStatus, len(detail.DAGs))
+	byID := make(map[string]responses.DAGDetail, len(detail.DAGs))
 	for _, d := range detail.DAGs {
 		byID[d.DAGID] = d
 	}

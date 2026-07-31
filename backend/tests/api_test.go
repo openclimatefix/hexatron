@@ -91,6 +91,9 @@ func TestListServicesEndpoint(t *testing.T) {
 		if svc.ID == "" || svc.Name == "" || svc.Status == "" {
 			t.Errorf("service is missing required fields: %+v", svc)
 		}
+		if len(svc.DAGs) != 0 {
+			t.Errorf("expected DAGs to be omitted from /services response, got %d dags", len(svc.DAGs))
+		}
 	}
 }
 
