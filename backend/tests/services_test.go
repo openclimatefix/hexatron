@@ -5,9 +5,11 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/openclimatefix/hexatron/backend/internal/clients"
 	"github.com/openclimatefix/hexatron/backend/internal/constants"
 	"github.com/openclimatefix/hexatron/backend/internal/models"
 	"github.com/openclimatefix/hexatron/backend/internal/services"
+	clientstructs "github.com/openclimatefix/hexatron/backend/internal/structures/clients"
 	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 )
@@ -392,6 +394,17 @@ func TestGetServiceByIDReturnsDAGDetail(t *testing.T) {
 	}
 	if neverRun.LastRun != nil {
 		t.Errorf("consume-never-run: expected no last run, got %+v", neverRun.LastRun)
+	}
+}
+
+func TestDAGURLHostReplacement(t *testing.T) {
+	client := clients.NewAirflowClient(clientstructs.AirflowClientConfig{
+		BaseURL: "http://host.docker.internal:38000",
+	})
+	got := client.DAGURL("test-dag")
+	expected := "http://128.0.0.1:38000/dags/test-dag/grid"
+	if got != expected {
+		t.Errorf("expected DAGURL %q, got %q", expected, got)
 	}
 }
 
