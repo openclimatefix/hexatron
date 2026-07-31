@@ -257,15 +257,15 @@ func computeDAGMetrics(respRuns []responses.DagRun, meta *airflowmodels.DAG) res
 		nextRunAt = &str
 	}
 
-	for i, r := range respRuns {
+	for i, run := range respRuns {
 		totalRuns++
-		if r.State == "failed" || r.State == "upstream_failed" {
+		if run.State == constants.AirflowStateFailed || run.State == constants.AirflowStateUpstreamFailed {
 			failedRuns++
 		}
 
-		if r.StartDate != nil && r.EndDate != nil {
-			start, err1 := time.Parse(time.RFC3339, *r.StartDate)
-			end, err2 := time.Parse(time.RFC3339, *r.EndDate)
+		if run.StartDate != nil && run.EndDate != nil {
+			start, err1 := time.Parse(time.RFC3339, *run.StartDate)
+			end, err2 := time.Parse(time.RFC3339, *run.EndDate)
 			if err1 == nil && err2 == nil && !end.Before(start) {
 				dur := end.Sub(start).Seconds()
 				durationSum += dur
@@ -279,8 +279,8 @@ func computeDAGMetrics(respRuns []responses.DagRun, meta *airflowmodels.DAG) res
 					lastRunAt = &str
 				}
 			}
-		} else if r.StartDate != nil && lastRunAt == nil {
-			start, err := time.Parse(time.RFC3339, *r.StartDate)
+		} else if run.StartDate != nil && lastRunAt == nil {
+			start, err := time.Parse(time.RFC3339, *run.StartDate)
 			if err == nil {
 				str := start.Format(time.RFC3339)
 				lastRunAt = &str
@@ -322,8 +322,8 @@ func computeServiceMetrics(dags []responses.DAGDetail, dagMeta map[string]airflo
 	var latestRunTime time.Time
 	var nextRunTime time.Time
 
-	for _, d := range dags {
-		meta, exists := dagMeta[d.DAGID]
+	for _, dag := range dags {
+		meta, exists := dagMeta[dag.DAGID]
 		if exists && meta.NextDagRun != nil {
 			if nextRunTime.IsZero() || meta.NextDagRun.Before(nextRunTime) {
 				nextRunTime = *meta.NextDagRun
@@ -332,15 +332,15 @@ func computeServiceMetrics(dags []responses.DAGDetail, dagMeta map[string]airflo
 			}
 		}
 
-		for _, r := range d.Runs {
+		for _, run := range dag.Runs {
 			totalRuns++
-			if r.State == "failed" || r.State == "upstream_failed" {
+			if run.State == constants.AirflowStateFailed || run.State == constants.AirflowStateUpstreamFailed {
 				failedRuns++
 			}
 
-			if r.StartDate != nil && r.EndDate != nil {
-				start, err1 := time.Parse(time.RFC3339, *r.StartDate)
-				end, err2 := time.Parse(time.RFC3339, *r.EndDate)
+			if run.StartDate != nil && run.EndDate != nil {
+				start, err1 := time.Parse(time.RFC3339, *run.StartDate)
+				end, err2 := time.Parse(time.RFC3339, *run.EndDate)
 				if err1 == nil && err2 == nil && !end.Before(start) {
 					dur := end.Sub(start).Seconds()
 					durationSum += dur
@@ -353,8 +353,8 @@ func computeServiceMetrics(dags []responses.DAGDetail, dagMeta map[string]airflo
 						lastRunAt = &str
 					}
 				}
-			} else if r.StartDate != nil {
-				start, err := time.Parse(time.RFC3339, *r.StartDate)
+			} else if run.StartDate != nil {
+				start, err := time.Parse(time.RFC3339, *run.StartDate)
 				if err == nil && start.After(latestRunTime) {
 					latestRunTime = start
 					str := start.Format(time.RFC3339)
@@ -393,8 +393,8 @@ func deriveStatus(dags []responses.DAGDetail, metrics responses.ServiceMetrics) 
 	}
 
 	allPaused := true
-	for _, d := range dags {
-		if !d.IsPaused {
+	for _, dag := range dags {
+		if !dag.IsPaused {
 			allPaused = false
 			break
 		}
@@ -409,14 +409,14 @@ func deriveStatus(dags []responses.DAGDetail, metrics responses.ServiceMetrics) 
 
 	hasDown := false
 	hasRunning := false
-	for _, d := range dags {
-		if len(d.Runs) > 0 {
-			firstState := d.Runs[0].State
-			if firstState == "failed" || firstState == "upstream_failed" {
+	for _, dag := range dags {
+		if len(dag.Runs) > 0 {
+			firstState := dag.Runs[0].State
+			if firstState == constants.AirflowStateFailed || firstState == constants.AirflowStateUpstreamFailed {
 				hasDown = true
 				break
 			}
-			if firstState == "running" {
+			if firstState == constants.AirflowStateRunning {
 				hasRunning = true
 			}
 		}
@@ -429,25 +429,14 @@ func deriveStatus(dags []responses.DAGDetail, metrics responses.ServiceMetrics) 
 	}
 
 	if *metrics.SuccessRate < 0.95 {
-		return "degraded"
+		return constants.StatusDegraded
 	}
 
 	return constants.StatusHealthy
 }
 
 func mapStateToStatus(state string) string {
-	switch state {
-	case "success":
-		return constants.StatusHealthy
-	case "failed", "upstream_failed":
-		return constants.StatusFailed
-	case "running":
-		return constants.StatusRunning
-	case "queued":
-		return constants.StatusQueued
-	default:
-		return constants.StatusUnknown
-	}
+	return MapAirflowStateToStatus(state)
 }
 
 func MapAirflowStateToStatus(state string) string {
@@ -472,8 +461,8 @@ func AggregateStatus(dags []models.DAGStatus) string {
 	}
 
 	var running, queued, unknown bool
-	for _, d := range dags {
-		switch d.Status {
+	for _, dag := range dags {
+		switch dag.Status {
 		case constants.StatusFailed:
 			return constants.StatusFailed
 		case constants.StatusRunning:
