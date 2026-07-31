@@ -569,6 +569,23 @@
     "note": "uk-analysis-clouds failing since 06:00 — this one is real"
   },
   {
+    "id": "wind-forecast",
+    "name": "Wind Forecast",
+    "category": "Forecast",
+    "status": "unknown",
+    "depends_on": [],
+    "metrics": {
+      "total_runs": 0,
+      "failed_runs": 0,
+      "success_rate": null,
+      "avg_duration_seconds": null,
+      "latest_duration_seconds": null,
+      "last_run_at": null,
+      "next_run_at": null
+    },
+    "note": "No monitoring data"
+  },
+  {
     "id": "consumer",
     "name": "Consumers",
     "category": "Consumer",
@@ -1688,42 +1705,6 @@
     "note": "Satellite ingestion paused for GOES-19 migration — resumes 14:00"
   },
   {
-    "id": "ui",
-    "name": "UI",
-    "category": "Application",
-    "status": "unknown",
-    "depends_on": [
-      "api"
-    ],
-    "metrics": {
-      "total_runs": 0,
-      "failed_runs": 0,
-      "success_rate": null,
-      "avg_duration_seconds": null,
-      "latest_duration_seconds": null,
-      "last_run_at": null,
-      "next_run_at": null
-    },
-    "note": "No monitoring data"
-  },
-  {
-    "id": "wind-forecast",
-    "name": "Wind Forecast",
-    "category": "Forecast",
-    "status": "unknown",
-    "depends_on": [],
-    "metrics": {
-      "total_runs": 0,
-      "failed_runs": 0,
-      "success_rate": null,
-      "avg_duration_seconds": null,
-      "latest_duration_seconds": null,
-      "last_run_at": null,
-      "next_run_at": null
-    },
-    "note": "No monitoring data"
-  },
-  {
     "id": "data-platform",
     "name": "DP",
     "category": "Platform",
@@ -2426,5 +2407,24 @@
       "next_run_at": null
     },
     "note": "Paused for deploy — v2.4.1 rollout"
+  },
+  {
+    "id": "ui",
+    "name": "UI",
+    "category": "Application",
+    "status": "unknown",
+    "depends_on": [
+      "api"
+    ],
+    "metrics": {
+      "total_runs": 0,
+      "failed_runs": 0,
+      "success_rate": null,
+      "avg_duration_seconds": null,
+      "latest_duration_seconds": null,
+      "last_run_at": null,
+      "next_run_at": null
+    },
+    "note": "No monitoring data"
   }
 ]

@@ -569,6 +569,23 @@
     "note": "Running on stale NWP — no fresh inputs since 17:40"
   },
   {
+    "id": "wind-forecast",
+    "name": "Wind Forecast",
+    "category": "Forecast",
+    "status": "unknown",
+    "depends_on": [],
+    "metrics": {
+      "total_runs": 0,
+      "failed_runs": 0,
+      "success_rate": null,
+      "avg_duration_seconds": null,
+      "latest_duration_seconds": null,
+      "last_run_at": null,
+      "next_run_at": null
+    },
+    "note": "No monitoring data"
+  },
+  {
     "id": "consumer",
     "name": "Consumers",
     "category": "Consumer",
@@ -1688,42 +1705,6 @@
     "note": "ECMWF NWP feed unreachable since 17:40 yesterday — 14h of failures"
   },
   {
-    "id": "ui",
-    "name": "UI",
-    "category": "Application",
-    "status": "unknown",
-    "depends_on": [
-      "api"
-    ],
-    "metrics": {
-      "total_runs": 0,
-      "failed_runs": 0,
-      "success_rate": null,
-      "avg_duration_seconds": null,
-      "latest_duration_seconds": null,
-      "last_run_at": null,
-      "next_run_at": null
-    },
-    "note": "No monitoring data"
-  },
-  {
-    "id": "wind-forecast",
-    "name": "Wind Forecast",
-    "category": "Forecast",
-    "status": "unknown",
-    "depends_on": [],
-    "metrics": {
-      "total_runs": 0,
-      "failed_runs": 0,
-      "success_rate": null,
-      "avg_duration_seconds": null,
-      "latest_duration_seconds": null,
-      "last_run_at": null,
-      "next_run_at": null
-    },
-    "note": "No monitoring data"
-  },
-  {
     "id": "data-platform",
     "name": "DP",
     "category": "Platform",
@@ -2426,5 +2407,24 @@
       "next_run_at": "2026-07-31T11:00:00Z"
     },
     "note": "Healthy, but serving last-good forecasts — inputs are 14h stale"
+  },
+  {
+    "id": "ui",
+    "name": "UI",
+    "category": "Application",
+    "status": "unknown",
+    "depends_on": [
+      "api"
+    ],
+    "metrics": {
+      "total_runs": 0,
+      "failed_runs": 0,
+      "success_rate": null,
+      "avg_duration_seconds": null,
+      "latest_duration_seconds": null,
+      "last_run_at": null,
+      "next_run_at": null
+    },
+    "note": "No monitoring data"
   }
 ]
