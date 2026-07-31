@@ -1,3 +1,4 @@
+import { aggregateMetrics } from '@/lib/normalise'
 import { deriveServiceStatus } from '@/lib/status'
 import type { Dag, DagRun, DagRunState, Service } from '@/lib/types'
 
@@ -83,19 +84,46 @@ function series(dagId: string, pattern: string, options: SeriesOptions): DagRun[
   })
 }
 
-interface DagOptions extends Omit<Partial<Dag>, 'status'> {
+interface DagOptions extends Omit<Partial<Dag>, 'status' | 'metrics'> {
   /**
-   * Success rate over the full metrics window. `runs` only holds the last ten
-   * for the history strip, so a DAG whose window is healthy can still show a
-   * failure in the strip — pass the real rate to keep the badge honest.
+   * Totals over the full metrics window. `runs` only holds the last ten for the
+   * history strip, so a DAG whose window is healthy can still show a failure in
+   * the strip — pass the window figures to keep the badge and numbers honest.
    */
-  successRate?: number
+  totalRuns?: number
+  failedRuns?: number
+  avgDurationSeconds?: number
+  latestDurationSeconds?: number | null
+  nextRunAt?: string | null
 }
 
 function dag(dagId: string, displayName: string, runs: DagRun[], options: DagOptions = {}): Dag {
-  const { successRate, ...overrides } = options
-  const successes = runs.filter((run) => run.state === 'success').length
-  const observedRate = runs.length > 0 ? successes / runs.length : null
+  const {
+    totalRuns,
+    failedRuns,
+    avgDurationSeconds,
+    latestDurationSeconds,
+    nextRunAt,
+    ...overrides
+  } = options
+
+  // Default the window to the visible runs when no wider figures are given.
+  const total = totalRuns ?? runs.length
+  const failed = failedRuns ?? runs.filter((run) => run.state === 'failed').length
+  const successRate = total > 0 ? (total - failed) / total : null
+
+  const durations = runs
+    .map((run) =>
+      run.start_date && run.end_date
+        ? (Date.parse(run.end_date) - Date.parse(run.start_date)) / 1000
+        : null,
+    )
+    .filter((d): d is number => d !== null)
+  const observedAvg =
+    durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null
+
+  const isPaused = overrides.is_paused ?? false
+  const nextRun = nextRunAt ?? overrides.next_dagrun_logical_date ?? null
 
   return {
     dag_id: dagId,
@@ -108,16 +136,31 @@ function dag(dagId: string, displayName: string, runs: DagRun[], options: DagOpt
     // Derived rather than hand-set, so changing a run pattern can't leave the
     // badge disagreeing with the history strip beside it.
     status: deriveServiceStatus({
-      isPaused: overrides.is_paused ?? false,
+      isPaused,
       latestRunState: runs[0]?.state ?? null,
-      successRate: successRate ?? observedRate,
+      successRate,
     }),
+    metrics: {
+      total_runs: total,
+      failed_runs: failed,
+      success_rate: successRate,
+      avg_duration_seconds: avgDurationSeconds ?? observedAvg,
+      latest_duration_seconds:
+        latestDurationSeconds !== undefined ? latestDurationSeconds : (durations[0] ?? null),
+      last_run_at: runs[0]?.start_date ?? null,
+      next_run_at: nextRun,
+    },
   }
+}
+
+/** Service metrics roll up from the DAGs, exactly as they do for live data. */
+function service(base: Omit<Service, 'metrics'>): Service {
+  return { ...base, metrics: aggregateMetrics(base.dags) }
 }
 
 export const STUB_SERVICES: Service[] = [
   // ---- Top row -----------------------------------------------------------
-  {
+  service({
     id: 'solar-forecast',
     name: 'Solar Forecast',
     category: 'Forecast',
@@ -134,7 +177,14 @@ export const STUB_SERVICES: Service[] = [
           baseDurationSeconds: 270,
           latestDurationSeconds: 430,
         }),
-        { next_dagrun_logical_date: isoAt(45), successRate: 0.92 },
+        {
+          next_dagrun_logical_date: isoAt(45),
+          nextRunAt: isoAt(45),
+          totalRuns: 40,
+          failedRuns: 4,
+          avgDurationSeconds: 270,
+          latestDurationSeconds: 430,
+        },
       ),
       dag(
         'solar_forecast_sites',
@@ -144,20 +194,17 @@ export const STUB_SERVICES: Service[] = [
           intervalMinutes: 60,
           baseDurationSeconds: 240,
         }),
-        { next_dagrun_logical_date: isoAt(45), successRate: 0.92 },
+        {
+          next_dagrun_logical_date: isoAt(45),
+          nextRunAt: isoAt(45),
+          totalRuns: 35,
+          failedRuns: 2,
+          avgDurationSeconds: 240,
+        },
       ),
     ],
-    metrics: {
-      total_runs: 75,
-      failed_runs: 6,
-      success_rate: 0.92,
-      avg_duration_seconds: 270,
-      latest_duration_seconds: 430,
-      last_run_at: isoAt(-10),
-      next_run_at: isoAt(45),
-    },
-  },
-  {
+  }),
+  service({
     id: 'consumer',
     name: 'Consumers',
     category: 'Consumer',
@@ -173,7 +220,15 @@ export const STUB_SERVICES: Service[] = [
           intervalMinutes: 180,
           baseDurationSeconds: 150,
         }),
-        { next_dagrun_logical_date: isoAt(15), timetable_summary: 'every 3h' },
+        {
+          next_dagrun_logical_date: isoAt(15),
+          nextRunAt: isoAt(15),
+          timetable_summary: 'every 3h',
+          totalRuns: 60,
+          failedRuns: 0,
+          avgDurationSeconds: 150,
+          latestDurationSeconds: 115,
+        },
       ),
       dag(
         'metoffice_consumer',
@@ -183,7 +238,14 @@ export const STUB_SERVICES: Service[] = [
           intervalMinutes: 180,
           baseDurationSeconds: 130,
         }),
-        { next_dagrun_logical_date: isoAt(18), timetable_summary: 'every 3h', successRate: 0.99 },
+        {
+          next_dagrun_logical_date: isoAt(18),
+          nextRunAt: isoAt(18),
+          timetable_summary: 'every 3h',
+          totalRuns: 60,
+          failedRuns: 1,
+          avgDurationSeconds: 130,
+        },
       ),
       dag(
         'pvlive_consumer',
@@ -194,20 +256,18 @@ export const STUB_SERVICES: Service[] = [
           baseDurationSeconds: 95,
           latestDurationSeconds: 115,
         }),
-        { next_dagrun_logical_date: isoAt(15), timetable_summary: 'every 30m' },
+        {
+          next_dagrun_logical_date: isoAt(15),
+          nextRunAt: isoAt(15),
+          timetable_summary: 'every 30m',
+          totalRuns: 60,
+          failedRuns: 0,
+          avgDurationSeconds: 95,
+        },
       ),
     ],
-    metrics: {
-      total_runs: 180,
-      failed_runs: 1,
-      success_rate: 0.99,
-      avg_duration_seconds: 130,
-      latest_duration_seconds: 115,
-      last_run_at: isoAt(-17),
-      next_run_at: isoAt(15),
-    },
-  },
-  {
+  }),
+  service({
     id: 'ui',
     name: 'UI',
     category: 'Application',
@@ -215,19 +275,10 @@ export const STUB_SERVICES: Service[] = [
     depends_on: ['api'],
     note: 'No monitoring data',
     dags: [],
-    metrics: {
-      total_runs: 0,
-      failed_runs: 0,
-      success_rate: null,
-      avg_duration_seconds: null,
-      latest_duration_seconds: null,
-      last_run_at: null,
-      next_run_at: null,
-    },
-  },
+  }),
 
   // ---- Bottom row --------------------------------------------------------
-  {
+  service({
     id: 'wind-forecast',
     name: 'Wind Forecast',
     category: 'Forecast',
@@ -244,20 +295,18 @@ export const STUB_SERVICES: Service[] = [
           baseDurationSeconds: 230,
           latestDurationSeconds: null,
         }),
-        { next_dagrun_logical_date: null, successRate: 0.61 },
+        {
+          next_dagrun_logical_date: null,
+          nextRunAt: null,
+          totalRuns: 46,
+          failedRuns: 18,
+          avgDurationSeconds: 230,
+          latestDurationSeconds: null,
+        },
       ),
     ],
-    metrics: {
-      total_runs: 46,
-      failed_runs: 18,
-      success_rate: 0.61,
-      avg_duration_seconds: 230,
-      latest_duration_seconds: null,
-      last_run_at: isoAt(-95),
-      next_run_at: null,
-    },
-  },
-  {
+  }),
+  service({
     id: 'data-platform',
     name: 'DP',
     category: 'Platform',
@@ -276,22 +325,17 @@ export const STUB_SERVICES: Service[] = [
         }),
         {
           next_dagrun_logical_date: isoAt(12),
+          nextRunAt: isoAt(12),
           timetable_summary: 'every 15m',
-          successRate: 0.995,
+          totalRuns: 210,
+          failedRuns: 1,
+          avgDurationSeconds: 90,
+          latestDurationSeconds: 88,
         },
       ),
     ],
-    metrics: {
-      total_runs: 210,
-      failed_runs: 1,
-      success_rate: 0.995,
-      avg_duration_seconds: 90,
-      latest_duration_seconds: 88,
-      last_run_at: isoAt(-3),
-      next_run_at: isoAt(12),
-    },
-  },
-  {
+  }),
+  service({
     id: 'api',
     name: 'API',
     category: 'Application',
@@ -310,18 +354,15 @@ export const STUB_SERVICES: Service[] = [
         {
           is_paused: true,
           next_dagrun_logical_date: null,
+          nextRunAt: null,
           timetable_summary: 'every 30m',
+          // Paused: no window to measure, so the card shows the note instead.
+          totalRuns: 0,
+          failedRuns: 0,
+          avgDurationSeconds: undefined,
+          latestDurationSeconds: null,
         },
       ),
     ],
-    metrics: {
-      total_runs: 0,
-      failed_runs: 0,
-      success_rate: null,
-      avg_duration_seconds: null,
-      latest_duration_seconds: null,
-      last_run_at: isoAt(-75),
-      next_run_at: null,
-    },
-  },
+  }),
 ]

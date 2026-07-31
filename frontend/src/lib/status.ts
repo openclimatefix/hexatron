@@ -4,6 +4,7 @@ export const SERVICE_STATUSES: ServiceStatus[] = [
   'healthy',
   'degraded',
   'down',
+  'running',
   'paused',
   'unknown',
 ]
@@ -12,6 +13,7 @@ export const STATUS_LABELS: Record<ServiceStatus, string> = {
   healthy: 'Healthy',
   degraded: 'Degraded',
   down: 'Down',
+  running: 'Running',
   paused: 'Paused',
   unknown: 'Unknown',
 }
@@ -26,6 +28,7 @@ export function countByStatus(services: Service[]): Record<ServiceStatus, number
     healthy: 0,
     degraded: 0,
     down: 0,
+    running: 0,
     paused: 0,
     unknown: 0,
   }

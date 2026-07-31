@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 
+import { LIVE } from '@/lib/scenarios'
 import type { TimeRange } from '@/lib/types'
 
 interface DashboardFilters {
@@ -9,6 +10,9 @@ interface DashboardFilters {
   setSearch: (value: string) => void
   range: TimeRange
   setRange: (value: TimeRange) => void
+  /** `live` for the real API, otherwise a fixture id from `@/lib/scenarios`. */
+  scenario: string
+  setScenario: (value: string) => void
 }
 
 const FilterContext = createContext<DashboardFilters | null>(null)
@@ -21,8 +25,12 @@ const FilterContext = createContext<DashboardFilters | null>(null)
 export function DashboardFilterProvider({ children }: { children: ReactNode }) {
   const [search, setSearch] = useState('')
   const [range, setRange] = useState<TimeRange>('24h')
+  const [scenario, setScenario] = useState<string>(LIVE)
 
-  const value = useMemo(() => ({ search, setSearch, range, setRange }), [search, range])
+  const value = useMemo(
+    () => ({ search, setSearch, range, setRange, scenario, setScenario }),
+    [search, range, scenario],
+  )
 
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>
 }

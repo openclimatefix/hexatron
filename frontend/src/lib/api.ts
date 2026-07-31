@@ -1,3 +1,4 @@
+import { normaliseService, normaliseServices } from '@/lib/normalise'
 import { STUB_SERVICES } from '@/lib/stub-data'
 import type { Service } from '@/lib/types'
 
@@ -9,12 +10,57 @@ import type { Service } from '@/lib/types'
 const BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:8080'
 const USE_STUB_DATA = process.env.USE_STUB_DATA !== 'false'
 
-/** Keeps a slow or down backend from hanging the dashboard render. */
 const REVALIDATE_SECONDS = 15
+/** A tunnelled dev backend can hang; don't let it hold the render open. */
+const TIMEOUT_MS = 8000
 
 export interface GetServicesOptions {
   search?: string
   category?: string
+}
+
+/**
+ * The backend returns `{"error": "..."}` on failure — surfacing that beats a
+ * bare status code when the real cause is something like "could not reach
+ * airflow".
+ */
+async function describeFailure(response: Response): Promise<string> {
+  try {
+    const body = await response.json()
+    const message = (body as { error?: unknown })?.error
+    if (typeof message === 'string' && message.length > 0) {
+      return `${message} (HTTP ${response.status})`
+    }
+  } catch {
+    // Non-JSON body — the status code is all we have.
+  }
+  return `HTTP ${response.status}`
+}
+
+/**
+ * A tunnelled dev backend can return a 200 with a truncated or double-encoded
+ * body. Fail with something diagnosable rather than a raw SyntaxError.
+ */
+async function parseJson(response: Response, path: string): Promise<unknown> {
+  const text = await response.text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    const preview = text.trim().slice(0, 80)
+    throw new Error(`${path} returned a non-JSON body: ${preview || '(empty)'}`)
+  }
+}
+
+async function request(path: string): Promise<Response> {
+  try {
+    return await fetch(`${BASE_URL}${path}`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`Could not reach ${BASE_URL} — ${reason}`)
+  }
 }
 
 export async function getServices(options: GetServicesOptions = {}): Promise<Service[]> {
@@ -25,13 +71,11 @@ export async function getServices(options: GetServicesOptions = {}): Promise<Ser
   if (options.category) params.set('category', options.category)
   const query = params.size > 0 ? `?${params}` : ''
 
-  const response = await fetch(`${BASE_URL}/services${query}`, {
-    next: { revalidate: REVALIDATE_SECONDS },
-  })
+  const response = await request(`/services${query}`)
   if (!response.ok) {
-    throw new Error(`Failed to load services: ${response.status}`)
+    throw new Error(await describeFailure(response))
   }
-  return response.json()
+  return normaliseServices(await parseJson(response, `/services${query}`))
 }
 
 export async function getService(serviceId: string): Promise<Service | null> {
@@ -39,14 +83,12 @@ export async function getService(serviceId: string): Promise<Service | null> {
     return STUB_SERVICES.find((service) => service.id === serviceId) ?? null
   }
 
-  const response = await fetch(`${BASE_URL}/services/${serviceId}`, {
-    next: { revalidate: REVALIDATE_SECONDS },
-  })
+  const response = await request(`/services/${serviceId}`)
   if (response.status === 404) return null
   if (!response.ok) {
-    throw new Error(`Failed to load service ${serviceId}: ${response.status}`)
+    throw new Error(await describeFailure(response))
   }
-  return response.json()
+  return normaliseService(await parseJson(response, `/services/${serviceId}`))
 }
 
 /**
