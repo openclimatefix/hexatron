@@ -48,3 +48,14 @@ func TestLoadCustomEnv(t *testing.T) {
 		t.Errorf("expected AirflowCookie session=secret, got %s", cfg.AirflowCookie)
 	}
 }
+
+func TestLoadPortNormalization(t *testing.T) {
+	os.Setenv("PORT", "8080")
+	defer os.Unsetenv("PORT")
+
+	cfg := config.Load()
+
+	if cfg.Addr != ":8080" {
+		t.Errorf("expected normalized Addr :8080, got %s", cfg.Addr)
+	}
+}
