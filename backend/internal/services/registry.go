@@ -27,7 +27,42 @@ func NewServiceRegistry(configPath string) (*ServiceRegistry, error) {
 		return nil, fmt.Errorf("parsing services yaml: %w", err)
 	}
 
+	if err := validate(cfg.Services); err != nil {
+		return nil, fmt.Errorf("invalid services config %s: %w", configPath, err)
+	}
+
 	return &ServiceRegistry{services: cfg.Services}, nil
+}
+
+// validate rejects duplicate ids, dangling depends_on edges and malformed globs.
+func validate(svcs []models.Service) error {
+	ids := make(map[string]struct{}, len(svcs))
+
+	for _, svc := range svcs {
+		if svc.ID == "" {
+			return fmt.Errorf("service %q has no id", svc.Name)
+		}
+		if _, duplicate := ids[svc.ID]; duplicate {
+			return fmt.Errorf("duplicate service id %q", svc.ID)
+		}
+		ids[svc.ID] = struct{}{}
+
+		for _, pattern := range svc.DAGPatterns {
+			if err := models.ValidateDAGPattern(pattern); err != nil {
+				return fmt.Errorf("service %q: dag pattern %q: %w", svc.ID, pattern, err)
+			}
+		}
+	}
+
+	// Checked in a second pass so a service may depend on one defined below it.
+	for _, svc := range svcs {
+		for _, dep := range svc.DependsOn {
+			if _, known := ids[dep]; !known {
+				return fmt.Errorf("service %q depends_on unknown service %q", svc.ID, dep)
+			}
+		}
+	}
+	return nil
 }
 
 // All returns all configured services loaded from services.yaml.

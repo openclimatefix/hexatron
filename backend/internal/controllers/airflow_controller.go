@@ -1,15 +1,14 @@
-// Package controllers handles incoming HTTP requests and delegates to the
-// service layer. Each function maps 1:1 to a REST endpoint.
+// Package controllers handles incoming HTTP requests and delegates to the service layer.
 package controllers
 
 import (
+	"log"
 	"net/http"
 
+	"github.com/openclimatefix/hexatron/backend/internal/clients"
 	"github.com/openclimatefix/hexatron/backend/internal/constants"
-	"github.com/openclimatefix/hexatron/backend/internal/models"
 	"github.com/openclimatefix/hexatron/backend/internal/services"
 	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
-	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 	"github.com/openclimatefix/hexatron/backend/internal/utils"
 )
 
@@ -25,62 +24,43 @@ func NewAirflowController(cfg *configstructs.Config) *AirflowController {
 	}
 }
 
-// ListServices handles GET /services.
-//
-// Response: structures/responses.ServiceListResponse (JSON array)
-//
-// Optional query params:
-//   - ?search=<string>   case-insensitive name filter
-//   - ?category=<string> exact category match
+// ListServices handles GET /services, with optional ?search and ?category filters.
 func (c *AirflowController) ListServices(w http.ResponseWriter, r *http.Request) {
-	summaries := c.airflowService.ListServices(
+	summaries, err := c.airflowService.ListServices(
+		r.Context(),
 		r.URL.Query().Get("search"),
 		r.URL.Query().Get("category"),
 	)
-	utils.WriteJSON(w, http.StatusOK, toServiceListResponse(summaries))
+	if err != nil {
+		writeUpstreamError(w, r, err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, summaries)
 }
 
-// GetService handles GET /services/{id}.
-//
-// Response: structures/responses.ServiceDetailResponse (JSON object)
-//
-// Returns 404 if the service is not found.
+// GetService handles GET /services/{id}, returning 404 if the service is not found.
 func (c *AirflowController) GetService(w http.ResponseWriter, r *http.Request) {
 	serviceID := r.PathValue("id")
-	detail, found := c.airflowService.GetServiceByID(serviceID)
+
+	detail, found, err := c.airflowService.GetServiceByID(r.Context(), serviceID)
 	if !found {
 		utils.WriteError(w, http.StatusNotFound, constants.ErrServiceNotFound+": "+serviceID)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, toServiceDetailResponse(detail))
+	if err != nil {
+		writeUpstreamError(w, r, err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, detail)
 }
 
-// toServiceListResponse maps domain ServiceSummary slice to the HTTP response type.
-func toServiceListResponse(summaries []models.ServiceSummary) responses.ServiceListResponse {
-	result := make(responses.ServiceListResponse, len(summaries))
-	for i, s := range summaries {
-		result[i] = responses.ServiceSummary{
-			ID:     s.ID,
-			Name:   s.Name,
-			Status: s.Status,
-		}
-	}
-	return result
-}
+// writeUpstreamError logs an Airflow failure and converts it into a 502 response.
+func writeUpstreamError(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("%s %s: %v", r.Method, r.URL.Path, err)
 
-// toServiceDetailResponse maps a domain ServiceDetail to the HTTP response type.
-func toServiceDetailResponse(detail models.ServiceDetail) responses.ServiceDetailResponse {
-	dags := make([]responses.DAGStatus, len(detail.DAGs))
-	for i, d := range detail.DAGs {
-		dags[i] = responses.DAGStatus{
-			DAGID:  d.DAGID,
-			Status: d.Status,
-		}
+	if clients.IsUnauthorized(err) {
+		utils.WriteError(w, http.StatusBadGateway, constants.ErrAirflowUnauthorized)
+		return
 	}
-	return responses.ServiceDetailResponse{
-		ID:     detail.ID,
-		Name:   detail.Name,
-		Status: detail.Status,
-		DAGs:   dags,
-	}
+	utils.WriteError(w, http.StatusBadGateway, constants.ErrAirflowUnreachable)
 }

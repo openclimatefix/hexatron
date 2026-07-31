@@ -6,11 +6,3 @@ type AirflowClientConfig struct {
 	BaseURL string
 	Cookie  string
 }
-
-// TODO : CHECK API Respone and match this struct fields.
-// DAGRun represents a single DAG run object returned by the Airflow API.
-type DAGRun struct {
-	DAGRunID string `json:"dag_run_id"`
-	State    string `json:"state"`
-}
-
