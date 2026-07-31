@@ -3,8 +3,8 @@ package routes
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/controllers"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/controllers"
 )
 
 // RegisterHealthRoutes attaches the health check endpoint to mux.

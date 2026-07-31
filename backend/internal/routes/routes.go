@@ -4,8 +4,8 @@ package routes
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/middleware"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/middleware"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
 // NewRouter creates and returns the root HTTP handler with all routes and

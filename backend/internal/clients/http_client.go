@@ -3,7 +3,7 @@ package clients
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
 )
 
 // NewHTTPClient returns a pre-configured *http.Client.

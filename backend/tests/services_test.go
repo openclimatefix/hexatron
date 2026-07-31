@@ -3,9 +3,9 @@ package tests
 import (
 	"testing"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/services"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/services"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
 func TestServiceRegistry(t *testing.T) {

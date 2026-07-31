@@ -5,11 +5,11 @@ import (
 	"log"
 	"strings"
 
-	"github.com/openclimatefix/hexatron/backend/clients"
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/models"
-	clientstructs "github.com/openclimatefix/hexatron/backend/structures/clients"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/clients"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/models"
+	clientstructs "github.com/openclimatefix/hexatron/backend/internal/structures/clients"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
 // AirflowService is the concrete implementation of the AirflowService interface.

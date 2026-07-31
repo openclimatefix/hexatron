@@ -7,9 +7,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/openclimatefix/hexatron/backend/config"
-	"github.com/openclimatefix/hexatron/backend/routes"
-	"github.com/openclimatefix/hexatron/backend/structures/responses"
+	"github.com/openclimatefix/hexatron/backend/internal/config"
+	"github.com/openclimatefix/hexatron/backend/internal/routes"
+	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 )
 
 func TestMain(m *testing.M) {

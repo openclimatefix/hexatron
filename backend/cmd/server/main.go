@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/config"
-	"github.com/openclimatefix/hexatron/backend/routes"
+	"github.com/openclimatefix/hexatron/backend/internal/config"
+	"github.com/openclimatefix/hexatron/backend/internal/routes"
 )
 
 func main() {

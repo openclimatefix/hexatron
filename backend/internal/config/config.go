@@ -3,8 +3,8 @@ package config
 import (
 	"strings"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
 // Load reads environment variables and returns a populated Config.

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/structures/responses"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 )
 
 // WriteJSON encodes v as JSON and writes it to w with the given HTTP status code.

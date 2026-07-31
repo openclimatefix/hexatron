@@ -8,8 +8,8 @@ package clients
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	clientstructs "github.com/openclimatefix/hexatron/backend/structures/clients"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	clientstructs "github.com/openclimatefix/hexatron/backend/internal/structures/clients"
 )
 
 // AirflowClient communicates with the Airflow REST API.

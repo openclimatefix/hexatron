@@ -5,12 +5,12 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/models"
-	"github.com/openclimatefix/hexatron/backend/services"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
-	"github.com/openclimatefix/hexatron/backend/structures/responses"
-	"github.com/openclimatefix/hexatron/backend/utils"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/models"
+	"github.com/openclimatefix/hexatron/backend/internal/services"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
+	"github.com/openclimatefix/hexatron/backend/internal/utils"
 )
 
 // AirflowController handles HTTP requests for service and DAG health status.

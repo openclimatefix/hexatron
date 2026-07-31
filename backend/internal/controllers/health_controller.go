@@ -3,8 +3,8 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/services"
-	"github.com/openclimatefix/hexatron/backend/utils"
+	"github.com/openclimatefix/hexatron/backend/internal/services"
+	"github.com/openclimatefix/hexatron/backend/internal/utils"
 )
 
 var healthService = services.NewHealthService()

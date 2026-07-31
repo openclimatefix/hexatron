@@ -1,8 +1,8 @@
 package services
 
 import (
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/structures/responses"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/structures/responses"
 )
 
 // HealthService is the concrete implementation of the HealthService interface.

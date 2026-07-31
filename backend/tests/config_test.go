@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/openclimatefix/hexatron/backend/config"
-	"github.com/openclimatefix/hexatron/backend/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/config"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
 )
 
 func TestLoadDefaults(t *testing.T) {

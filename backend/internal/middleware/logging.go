@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	mwstructs "github.com/openclimatefix/hexatron/backend/structures/middleware"
+	mwstructs "github.com/openclimatefix/hexatron/backend/internal/structures/middleware"
 )
 
 // Logging logs method, path, status code, and latency for every request.

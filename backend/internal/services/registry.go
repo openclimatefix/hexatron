@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/openclimatefix/hexatron/backend/models"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/models"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 	"gopkg.in/yaml.v3"
 )
 

@@ -3,9 +3,9 @@ package routes
 import (
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/constants"
-	"github.com/openclimatefix/hexatron/backend/controllers"
-	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
+	"github.com/openclimatefix/hexatron/backend/internal/constants"
+	"github.com/openclimatefix/hexatron/backend/internal/controllers"
+	configstructs "github.com/openclimatefix/hexatron/backend/internal/structures/config"
 )
 
 // RegisterAirflowRoutes attaches the service/DAG health endpoints to mux.

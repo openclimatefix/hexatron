@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/openclimatefix/hexatron/backend/utils"
+	"github.com/openclimatefix/hexatron/backend/internal/utils"
 )
 
 type contextKey string
