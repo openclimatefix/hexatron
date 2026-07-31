@@ -30,10 +30,10 @@ func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 
 	airflow := startFakeAirflow(t, map[string]fakeAirflowDAG{
-		"dag-ok":        {State: constants.AirflowStateSuccess},
-		"dag-running":   {State: constants.AirflowStateRunning},
-		"dag-broken":    {State: constants.AirflowStateFailed},
-		"dag-never-run": {State: ""},
+		"forecast-ok":       {State: constants.AirflowStateSuccess},
+		"forecast-running":  {State: constants.AirflowStateRunning},
+		"consume-broken":    {State: constants.AirflowStateFailed},
+		"consume-never-run": {State: ""},
 	})
 
 	return routes.NewRouter(&configstructs.Config{

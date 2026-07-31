@@ -1,62 +1,68 @@
 # Single source of truth for business services.
 #
-# Each service groups the Airflow DAGs that have to be working for that service
-# to be considered healthy. Adding a service requires only updating this file.
+# A service groups the Airflow DAGs that have to be working for it to be
+# considered healthy. Membership is resolved against Airflow's live DAG list on
+# every request: dag_patterns are globs matched against dag_id, so a DAG added
+# in Airflow joins its service without an edit here. Nothing in this file names
+# a DAG that Airflow does not report.
 #
-# The dag values must match Airflow dag_ids exactly. Hexatron warns at startup
-# about configured DAGs that Airflow does not know about, and about DAGs Airflow
-# has that no service claims.
+# A service whose patterns match nothing has no DAGs and reports "unknown" —
+# wind-forecast and ui are in that state today. Hexatron warns at startup about
+# patterns matching no DAG, and about DAGs Airflow runs that no service claims.
+#
+# depends_on lists upstream service ids and drives the dashboard's dependency
+# graph. Data flows: forecasts + consumers -> data-platform -> api -> ui.
 
 services:
-  - id: site-forecast
-    name: Site Forecast
+  - id: solar-forecast
+    name: Solar Forecast
     category: Forecast
-    dags:
-      - uk-forecast-site
+    depends_on: []
+    # Cloudcasting predicts the cloud cover the solar forecast runs on, so
+    # uk-forecast-clouds and uk-analysis-clouds count against this service.
+    dag_patterns:
+      - uk-forecast-*
+      - uk-analysis-*
       - nl-forecast
 
-  - id: national-forecast
-    name: National Forecast
+  # No wind DAGs in Airflow yet; reports unknown until there are.
+  - id: wind-forecast
+    name: Wind Forecast
     category: Forecast
-    dags:
-      - uk-forecast-gsp
-
-  - id: cloudcasting
-    name: Cloudcasting
-    category: Forecast
-    dags:
-      - uk-forecast-clouds
-      - uk-analysis-clouds
+    depends_on: []
+    dag_patterns: []
 
   # UK and NL consumers sit under one service for now; split them later by
-  # adding a second entry and moving the nl-* DAGs to it.
+  # adding a second entry and narrowing the patterns to the nl-* DAGs.
   - id: consumer
-    name: Consumer
+    name: Consumers
     category: Consumer
-    dags:
-      - uk-consume-neso
-      - uk-consume-nwp
-      - uk-consume-pv
-      - uk-consume-pvlive-dayafter
-      - uk-consume-pvlive-intraday
-      - uk-consume-sat
-      - uk-consume-sat-v1
-      - nl-consume-ned-nl
-      - nl-consume-ned-nl-forecast
-      - nl-consume-nwp
-
-  - id: quartz
-    name: Quartz API
-    category: API
-    dags:
-      - uk-api-quartz-national-gsp-check
-      - uk-api-site-check
-      - nl-api-check
+    depends_on: []
+    dag_patterns:
+      - "*-consume-*"
 
   - id: data-platform
-    name: Data Platform
+    name: DP
     category: Platform
-    dags:
-      - uk-manage-clean-up-logs
-      - uk-manage-elb
-      - uk-manage-sitedb-cleanup
+    depends_on:
+      - solar-forecast
+      - wind-forecast
+      - consumer
+    dag_patterns:
+      - "*-manage-*"
+
+  - id: api
+    name: API
+    category: Application
+    depends_on:
+      - data-platform
+    dag_patterns:
+      - "*-api-*"
+
+  # No Airflow DAGs yet — renders as "unknown" until monitoring is added.
+  - id: ui
+    name: UI
+    category: Application
+    depends_on:
+      - api
+    dag_patterns: []

@@ -5,7 +5,7 @@ import "time"
 
 // ServiceSummary is a single item in the GET /services response.
 //
-//	{ "id": "site-forecast", "name": "Site Forecast",
+//	{ "id": "solar-forecast", "name": "Solar Forecast",
 //	  "category": "Forecast", "status": "healthy" }
 type ServiceSummary struct {
 	ID       string `json:"id"`
@@ -17,8 +17,8 @@ type ServiceSummary struct {
 // ServiceListResponse is the full response body for GET /services.
 //
 //	[
-//	  { "id": "site-forecast", "name": "Site Forecast", "status": "healthy" },
-//	  { "id": "consumer",      "name": "Consumer",      "status": "failed"  }
+//	  { "id": "solar-forecast", "name": "Solar Forecast", "status": "healthy" },
+//	  { "id": "consumer",       "name": "Consumers",      "status": "failed"  }
 //	]
 type ServiceListResponse []ServiceSummary
 
@@ -59,7 +59,7 @@ type RunSummary struct {
 //
 //	{
 //	  "id":     "consumer",
-//	  "name":   "Consumer",
+//	  "name":   "Consumers",
 //	  "status": "failed",
 //	  "dags":   [ ... ]
 //	}

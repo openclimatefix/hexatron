@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/openclimatefix/hexatron/backend/internal/constants"
@@ -25,16 +26,192 @@ func TestServiceRegistry(t *testing.T) {
 	if !found {
 		t.Fatalf("expected to find 'consumer' service by ID")
 	}
-	if consumerSvc.Name != "Consumer" {
-		t.Errorf("expected service name Consumer, got %s", consumerSvc.Name)
+	if consumerSvc.Name != "Consumers" {
+		t.Errorf("expected service name Consumers, got %s", consumerSvc.Name)
 	}
-	if len(consumerSvc.DAGIDs) == 0 {
-		t.Errorf("expected 'consumer' service to list DAGs")
+	if len(consumerSvc.DAGPatterns) == 0 {
+		t.Errorf("expected 'consumer' service to define DAG patterns")
 	}
 
 	_, notFound := registry.ByID("non-existent-id")
 	if notFound {
 		t.Errorf("expected non-existent service ID to return false")
+	}
+}
+
+// TestServiceRegistryRejectsBadConfig covers the two ways services.yaml can be
+// wrong without anything failing at request time: a pattern that cannot compile
+// silently claims no DAGs, and a dangling depends_on draws an edge on the
+// dashboard to a service that does not exist.
+func TestServiceRegistryRejectsBadConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{"malformed dag pattern", `
+services:
+  - id: forecast
+    name: Forecast
+    dag_patterns:
+      - "uk-[forecast"
+`},
+		{"dangling depends_on", `
+services:
+  - id: forecast
+    name: Forecast
+    depends_on:
+      - no-such-service
+`},
+		{"duplicate service id", `
+services:
+  - id: forecast
+    name: Forecast
+  - id: forecast
+    name: Forecast Again
+`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := services.NewServiceRegistry(writeServicesYAML(t, tc.yaml)); err == nil {
+				t.Error("expected an error loading the registry, got nil")
+			}
+		})
+	}
+}
+
+// TestMatchDAGsIsAnchored guards the failure the glob patterns are designed to
+// avoid: nl-consume-ned-nl-forecast ends in "-forecast" but is a consumer DAG,
+// so a forecast service must not claim it.
+func TestMatchDAGsIsAnchored(t *testing.T) {
+	airflowDAGs := []string{
+		"nl-consume-ned-nl-forecast",
+		"nl-forecast",
+		"uk-analysis-clouds",
+		"uk-consume-pv",
+		"uk-forecast-site",
+	}
+
+	forecast := models.Service{DAGPatterns: []string{"uk-forecast-*", "uk-analysis-*", "nl-forecast"}}
+	want := []string{"nl-forecast", "uk-analysis-clouds", "uk-forecast-site"}
+
+	got := forecast.MatchDAGs(airflowDAGs)
+	if !slices.Equal(got, want) {
+		t.Errorf("MatchDAGs() = %v, want %v", got, want)
+	}
+
+	// A service with no patterns has no DAGs, which aggregates to unknown rather
+	// than silently claiming everything.
+	empty := models.Service{ID: "wind-forecast"}
+	if got := empty.MatchDAGs(airflowDAGs); len(got) != 0 {
+		t.Errorf("a service with no patterns claimed %v", got)
+	}
+	if got := services.AggregateStatus(nil); got != constants.StatusUnknown {
+		t.Errorf("a service with no DAGs = %q, want %q", got, constants.StatusUnknown)
+	}
+}
+
+// ocfAirflowDAGs is the DAG list the OCF Airflow deployment served when the
+// patterns in data/services.yaml were written. The patterns are matched against
+// whatever Airflow reports at runtime; this snapshot only pins down how that
+// deployment's DAGs are expected to route, so a pattern edit that quietly
+// re-homes a DAG fails here.
+var ocfAirflowDAGs = []string{
+	"nl-api-check",
+	"nl-consume-ned-nl",
+	"nl-consume-ned-nl-forecast",
+	"nl-consume-nwp",
+	"nl-forecast",
+	"uk-analysis-clouds",
+	"uk-api-quartz-national-gsp-check",
+	"uk-api-site-check",
+	"uk-consume-neso",
+	"uk-consume-nwp",
+	"uk-consume-pv",
+	"uk-consume-pvlive-dayafter",
+	"uk-consume-pvlive-intraday",
+	"uk-consume-sat",
+	"uk-consume-sat-v1",
+	"uk-forecast-clouds",
+	"uk-forecast-gsp",
+	"uk-forecast-site",
+	"uk-manage-clean-up-logs",
+	"uk-manage-elb",
+	"uk-manage-sitedb-cleanup",
+}
+
+func TestShippedConfigRoutesOCFDAGs(t *testing.T) {
+	registry, err := services.NewServiceRegistry(constants.ServicesConfigPath)
+	if err != nil {
+		t.Fatalf("unexpected error loading service registry: %v", err)
+	}
+
+	want := map[string][]string{
+		"solar-forecast": {
+			"nl-forecast",
+			"uk-analysis-clouds",
+			"uk-forecast-clouds",
+			"uk-forecast-gsp",
+			"uk-forecast-site",
+		},
+		// No wind DAGs in Airflow yet, and no UI monitoring.
+		"wind-forecast": {},
+		"ui":            {},
+		"consumer": {
+			"nl-consume-ned-nl",
+			"nl-consume-ned-nl-forecast",
+			"nl-consume-nwp",
+			"uk-consume-neso",
+			"uk-consume-nwp",
+			"uk-consume-pv",
+			"uk-consume-pvlive-dayafter",
+			"uk-consume-pvlive-intraday",
+			"uk-consume-sat",
+			"uk-consume-sat-v1",
+		},
+		"data-platform": {
+			"uk-manage-clean-up-logs",
+			"uk-manage-elb",
+			"uk-manage-sitedb-cleanup",
+		},
+		"api": {
+			"nl-api-check",
+			"uk-api-quartz-national-gsp-check",
+			"uk-api-site-check",
+		},
+	}
+
+	all := registry.All()
+	if len(all) != len(want) {
+		t.Fatalf("expected %d services in the registry, got %d", len(want), len(all))
+	}
+
+	claimed := make(map[string]string, len(ocfAirflowDAGs))
+	for _, svc := range all {
+		expected, known := want[svc.ID]
+		if !known {
+			t.Errorf("unexpected service %q in registry", svc.ID)
+			continue
+		}
+
+		got := svc.MatchDAGs(ocfAirflowDAGs)
+		if !slices.Equal(got, expected) {
+			t.Errorf("%s claimed %v, want %v", svc.ID, got, expected)
+		}
+
+		for _, dagID := range got {
+			if other, taken := claimed[dagID]; taken {
+				t.Errorf("%s is claimed by both %s and %s", dagID, other, svc.ID)
+			}
+			claimed[dagID] = svc.ID
+		}
+	}
+
+	// Every DAG the deployment runs belongs to exactly one service.
+	for _, dagID := range ocfAirflowDAGs {
+		if _, ok := claimed[dagID]; !ok {
+			t.Errorf("%s is claimed by no service", dagID)
+		}
 	}
 }
 
@@ -93,32 +270,32 @@ func TestAggregateStatus(t *testing.T) {
 	}
 }
 
-// testServicesYAML defines two services over four DAGs, enough to cover a
-// healthy service and a service broken by a single DAG.
+// testServicesYAML defines two services whose patterns claim four DAGs between
+// them, enough to cover a healthy service and a service broken by a single DAG.
 const testServicesYAML = `
 services:
   - id: forecast
     name: Forecast
     category: Forecast
-    dags:
-      - dag-ok
-      - dag-running
+    dag_patterns:
+      - forecast-*
   - id: consumer
     name: Consumer
     category: Consumer
-    dags:
-      - dag-broken
-      - dag-never-run
+    depends_on:
+      - forecast
+    dag_patterns:
+      - consume-*
 `
 
 func newTestService(t *testing.T, cookie string) *services.AirflowService {
 	t.Helper()
 
 	airflow := startFakeAirflow(t, map[string]fakeAirflowDAG{
-		"dag-ok":        {State: constants.AirflowStateSuccess},
-		"dag-running":   {State: constants.AirflowStateRunning},
-		"dag-broken":    {State: constants.AirflowStateFailed},
-		"dag-never-run": {State: ""},
+		"forecast-ok":       {State: constants.AirflowStateSuccess},
+		"forecast-running":  {State: constants.AirflowStateRunning},
+		"consume-broken":    {State: constants.AirflowStateFailed},
+		"consume-never-run": {State: ""},
 	})
 
 	return services.NewAirflowService(&configstructs.Config{
@@ -205,27 +382,27 @@ func TestGetServiceByIDReturnsDAGDetail(t *testing.T) {
 		byID[d.DAGID] = d
 	}
 
-	broken := byID["dag-broken"]
+	broken := byID["consume-broken"]
 	if broken.Status != constants.StatusFailed {
-		t.Errorf("dag-broken: expected %q, got %q", constants.StatusFailed, broken.Status)
+		t.Errorf("consume-broken: expected %q, got %q", constants.StatusFailed, broken.Status)
 	}
 	if broken.LastRun == nil {
-		t.Error("dag-broken: expected a last run")
+		t.Error("consume-broken: expected a last run")
 	}
 	if broken.AirflowURL == "" {
-		t.Error("dag-broken: expected an Airflow deep link")
+		t.Error("consume-broken: expected an Airflow deep link")
 	}
 	if broken.Schedule == "" {
-		t.Error("dag-broken: expected a schedule")
+		t.Error("consume-broken: expected a schedule")
 	}
 
 	// A DAG that has never run has no last run, and is unknown rather than failed.
-	neverRun := byID["dag-never-run"]
+	neverRun := byID["consume-never-run"]
 	if neverRun.Status != constants.StatusUnknown {
-		t.Errorf("dag-never-run: expected %q, got %q", constants.StatusUnknown, neverRun.Status)
+		t.Errorf("consume-never-run: expected %q, got %q", constants.StatusUnknown, neverRun.Status)
 	}
 	if neverRun.LastRun != nil {
-		t.Errorf("dag-never-run: expected no last run, got %+v", neverRun.LastRun)
+		t.Errorf("consume-never-run: expected no last run, got %+v", neverRun.LastRun)
 	}
 }
 
@@ -253,31 +430,36 @@ func TestExpiredCookieSurfacesError(t *testing.T) {
 
 func TestConfigDriftDetectsUnknownDAG(t *testing.T) {
 	airflow := startFakeAirflow(t, map[string]fakeAirflowDAG{
-		"dag-ok":       {State: constants.AirflowStateSuccess},
+		"forecast-ok":  {State: constants.AirflowStateSuccess},
 		"dag-orphaned": {State: constants.AirflowStateSuccess},
 	})
 
+	// wind has no patterns and is not drift; the typo'd pattern is.
 	svc := services.NewAirflowService(&configstructs.Config{
 		ServicesConfigPath: writeServicesYAML(t, `
 services:
   - id: forecast
     name: Forecast
     category: Forecast
-    dags:
-      - dag-ok
-      - dag-typo
+    dag_patterns:
+      - forecast-*
+      - typo-*
+  - id: wind
+    name: Wind
+    category: Forecast
+    dag_patterns: []
 `),
 		AirflowBaseURL: airflow.URL,
 		AirflowCookie:  "test-cookie",
 	})
 
-	missing, unclaimed, err := svc.ConfigDrift(context.Background())
+	unmatched, unclaimed, err := svc.ConfigDrift(context.Background())
 	if err != nil {
 		t.Fatalf("ConfigDrift returned error: %v", err)
 	}
 
-	if len(missing) != 1 || missing[0] != "dag-typo" {
-		t.Errorf("expected dag-typo reported missing, got %v", missing)
+	if len(unmatched) != 1 || unmatched[0] != "forecast: typo-*" {
+		t.Errorf("expected the typo-* pattern reported unmatched, got %v", unmatched)
 	}
 	if len(unclaimed) != 1 || unclaimed[0] != "dag-orphaned" {
 		t.Errorf("expected dag-orphaned reported unclaimed, got %v", unclaimed)

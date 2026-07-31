@@ -29,25 +29,26 @@ func main() {
 	}
 }
 
-// logConfigDrift warns about services.yaml disagreeing with Airflow: DAGs that
-// are configured but missing, and DAGs Airflow runs that no service claims.
+// logConfigDrift warns about services.yaml disagreeing with Airflow: DAG
+// patterns that match nothing, and DAGs Airflow runs that no service claims.
 //
-// It is a warning rather than a fatal error — a stale DAG reference should not
-// stop the dashboard reporting on everything else — but it is the quickest way
-// to catch a typo in a dag id, which otherwise just shows as "unknown".
+// It is a warning rather than a fatal error — one stale pattern should not stop
+// the dashboard reporting on everything else — but it is the quickest way to
+// catch a service that has quietly lost its DAGs, which otherwise just shows as
+// "unknown".
 func logConfigDrift(cfg *configstructs.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
 
-	missing, unclaimed, err := services.NewAirflowService(cfg).ConfigDrift(ctx)
+	unmatched, unclaimed, err := services.NewAirflowService(cfg).ConfigDrift(ctx)
 	if err != nil {
 		log.Printf("warning: could not check services.yaml against airflow: %v", err)
 		return
 	}
 
-	if len(missing) > 0 {
-		log.Printf("warning: %d configured DAG(s) not found in airflow: %s",
-			len(missing), strings.Join(missing, ", "))
+	if len(unmatched) > 0 {
+		log.Printf("warning: %d DAG pattern(s) matched no airflow DAG: %s",
+			len(unmatched), strings.Join(unmatched, ", "))
 	}
 	if len(unclaimed) > 0 {
 		log.Printf("note: %d airflow DAG(s) not claimed by any service: %s",
