@@ -1,3 +1,4 @@
+import { deriveServiceStatus } from '@/lib/status'
 import type { Dag, DagRun, DagRunState, Service } from '@/lib/types'
 
 /**
@@ -82,22 +83,35 @@ function series(dagId: string, pattern: string, options: SeriesOptions): DagRun[
   })
 }
 
-function dag(
-  dagId: string,
-  displayName: string,
-  runs: DagRun[],
-  overrides: Partial<Dag> = {},
-): Dag {
-  const latest = runs[0]
+interface DagOptions extends Omit<Partial<Dag>, 'status'> {
+  /**
+   * Success rate over the full metrics window. `runs` only holds the last ten
+   * for the history strip, so a DAG whose window is healthy can still show a
+   * failure in the strip — pass the real rate to keep the badge honest.
+   */
+  successRate?: number
+}
+
+function dag(dagId: string, displayName: string, runs: DagRun[], options: DagOptions = {}): Dag {
+  const { successRate, ...overrides } = options
+  const successes = runs.filter((run) => run.state === 'success').length
+  const observedRate = runs.length > 0 ? successes / runs.length : null
+
   return {
     dag_id: dagId,
     dag_display_name: displayName,
     is_paused: false,
     timetable_summary: 'hourly',
     next_dagrun_logical_date: null,
-    status: latest?.state === 'failed' ? 'down' : 'healthy',
     runs,
     ...overrides,
+    // Derived rather than hand-set, so changing a run pattern can't leave the
+    // badge disagreeing with the history strip beside it.
+    status: deriveServiceStatus({
+      isPaused: overrides.is_paused ?? false,
+      latestRunState: runs[0]?.state ?? null,
+      successRate: successRate ?? observedRate,
+    }),
   }
 }
 
@@ -120,7 +134,7 @@ export const STUB_SERVICES: Service[] = [
           baseDurationSeconds: 270,
           latestDurationSeconds: 430,
         }),
-        { next_dagrun_logical_date: isoAt(45), status: 'degraded' },
+        { next_dagrun_logical_date: isoAt(45), successRate: 0.92 },
       ),
       dag(
         'solar_forecast_sites',
@@ -130,7 +144,7 @@ export const STUB_SERVICES: Service[] = [
           intervalMinutes: 60,
           baseDurationSeconds: 240,
         }),
-        { next_dagrun_logical_date: isoAt(45), status: 'degraded' },
+        { next_dagrun_logical_date: isoAt(45), successRate: 0.92 },
       ),
     ],
     metrics: {
@@ -169,7 +183,7 @@ export const STUB_SERVICES: Service[] = [
           intervalMinutes: 180,
           baseDurationSeconds: 130,
         }),
-        { next_dagrun_logical_date: isoAt(18), timetable_summary: 'every 3h' },
+        { next_dagrun_logical_date: isoAt(18), timetable_summary: 'every 3h', successRate: 0.99 },
       ),
       dag(
         'pvlive_consumer',
@@ -230,7 +244,7 @@ export const STUB_SERVICES: Service[] = [
           baseDurationSeconds: 230,
           latestDurationSeconds: null,
         }),
-        { next_dagrun_logical_date: null, status: 'down' },
+        { next_dagrun_logical_date: null, successRate: 0.61 },
       ),
     ],
     metrics: {
@@ -260,7 +274,11 @@ export const STUB_SERVICES: Service[] = [
           baseDurationSeconds: 90,
           latestDurationSeconds: 88,
         }),
-        { next_dagrun_logical_date: isoAt(12), timetable_summary: 'every 15m' },
+        {
+          next_dagrun_logical_date: isoAt(12),
+          timetable_summary: 'every 15m',
+          successRate: 0.995,
+        },
       ),
     ],
     metrics: {
@@ -291,7 +309,6 @@ export const STUB_SERVICES: Service[] = [
         }),
         {
           is_paused: true,
-          status: 'paused',
           next_dagrun_logical_date: null,
           timetable_summary: 'every 30m',
         },

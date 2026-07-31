@@ -8,9 +8,12 @@ import { useDashboardFilters } from '@/components/dashboard/filter-context'
 import type { Service } from '@/lib/types'
 
 /**
- * Filters the fleet from the header's search box. Matching on service name,
- * category or DAG id mirrors the backend's `search` param, so behaviour won't
- * shift when filtering moves server-side.
+ * Filters the fleet from the header's search box. Matches service name,
+ * category and DAG id, because the box is labelled "Search DAGs…".
+ *
+ * Note the backend's documented `search` param is name-only; widening it is
+ * flagged in the README. Until that lands, this must stay client-side or
+ * DAG-id queries will come back empty.
  */
 export function DashboardView({ services }: { services: Service[] }) {
   const { search } = useDashboardFilters()

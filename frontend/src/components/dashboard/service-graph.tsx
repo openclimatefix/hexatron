@@ -98,15 +98,9 @@ function routeEdge(from: Box, to: Box, side: Side, entry: number): string {
 
 export function ServiceGraph({ services }: { services: Service[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const cardRefs = useRef(new Map<string, HTMLDivElement>())
   const [edges, setEdges] = useState<Edge[]>([])
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [showGraph, setShowGraph] = useState(false)
-
-  const registerCard = useCallback((id: string, node: HTMLDivElement | null) => {
-    if (node) cardRefs.current.set(id, node)
-    else cardRefs.current.delete(id)
-  }, [])
 
   useEffect(() => {
     const query = window.matchMedia(GRAPH_MEDIA_QUERY)
@@ -123,21 +117,29 @@ export function ServiceGraph({ services }: { services: Service[] }) {
     const origin = container.getBoundingClientRect()
     setSize({ width: origin.width, height: origin.height })
 
-    const visible = new Set(services.map((service) => service.id))
+    // Read positions from the DOM rather than tracked refs: the cards are all
+    // descendants of this container, so a query here avoids re-registering
+    // every card's ref on each render.
+    const nodes = new Map<string, HTMLElement>()
+    for (const node of container.querySelectorAll<HTMLElement>('[data-service-id]')) {
+      const id = node.dataset.serviceId
+      if (id) nodes.set(id, node)
+    }
+
     const statusById = new Map(services.map((s) => [s.id, s.status]))
     const next: Edge[] = []
 
     for (const service of services) {
-      const toNode = cardRefs.current.get(service.id)
+      const toNode = nodes.get(service.id)
       if (!toNode) continue
       const to = toBox(toNode, origin)
 
       // Skip edges from cards filtered out of view — a dangling arrow is worse
       // than no arrow.
       const incoming = service.depends_on
-        .filter((id) => visible.has(id) && cardRefs.current.has(id))
+        .filter((id) => nodes.has(id))
         .map((id) => {
-          const from = toBox(cardRefs.current.get(id)!, origin)
+          const from = toBox(nodes.get(id)!, origin)
           return { id, from, side: entrySide(from, to) }
         })
 
@@ -189,7 +191,7 @@ export function ServiceGraph({ services }: { services: Service[] }) {
 
     const observer = new ResizeObserver(measure)
     observer.observe(container)
-    for (const node of cardRefs.current.values()) observer.observe(node)
+    for (const node of container.querySelectorAll('[data-service-id]')) observer.observe(node)
 
     window.addEventListener('resize', measure)
     return () => {
@@ -248,12 +250,7 @@ export function ServiceGraph({ services }: { services: Service[] }) {
 
       <div className="relative z-10 grid gap-x-16 gap-y-24 md:grid-cols-2 lg:grid-cols-3">
         {services.map((service) => (
-          <div
-            key={service.id}
-            ref={(node) => {
-              registerCard(service.id, node)
-            }}
-          >
+          <div key={service.id} data-service-id={service.id}>
             <ServiceCard service={service} className="h-full" />
           </div>
         ))}

@@ -49,7 +49,11 @@ export async function getService(serviceId: string): Promise<Service | null> {
   return response.json()
 }
 
-/** Mirrors the backend's documented `search` and `category` query params. */
+/**
+ * `category` matches the documented contract exactly. `search` is deliberately
+ * wider than the documented name-only behaviour — see the README note; the
+ * backend needs the same widening before this can be delegated server-side.
+ */
 function filterStub(services: Service[], options: GetServicesOptions): Service[] {
   const search = options.search?.trim().toLowerCase()
   return services.filter((service) => {

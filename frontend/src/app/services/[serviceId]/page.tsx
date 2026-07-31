@@ -3,8 +3,13 @@ import { notFound } from 'next/navigation'
 
 import { DagList } from '@/components/dashboard/dag-list'
 import { StatusBadge } from '@/components/dashboard/status-badge'
+import { ServiceLoadError } from '@/components/service-load-error'
 import { getService } from '@/lib/api'
 import { EM_DASH, formatDuration, formatSuccessRate, formatTime } from '@/lib/format'
+import type { Service } from '@/lib/types'
+
+/** Live data — see the note in app/page.tsx. */
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ serviceId: string }>
@@ -12,14 +17,28 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const { serviceId } = await params
-  const service = await getService(serviceId)
-  return { title: service?.name ?? 'Service not found' }
+  try {
+    const service = await getService(serviceId)
+    return { title: service?.name ?? 'Service not found' }
+  } catch {
+    // Metadata must not be the thing that takes the page down.
+    return { title: 'Service' }
+  }
 }
 
 export default async function ServiceDetailPage({ params }: PageProps) {
   const { serviceId } = await params
-  const service = await getService(serviceId)
 
+  let service: Service | null
+  try {
+    service = await getService(serviceId)
+  } catch (error) {
+    console.error(`Failed to load service ${serviceId}:`, error)
+    return <ServiceLoadError detail={error instanceof Error ? error.message : undefined} />
+  }
+
+  // Kept outside the try: notFound() signals via a thrown control-flow error
+  // that must reach Next, not be swallowed as a load failure.
   if (!service) notFound()
 
   const successRate = formatSuccessRate(service.metrics.success_rate)

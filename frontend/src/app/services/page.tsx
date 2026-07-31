@@ -1,15 +1,26 @@
 import Link from 'next/link'
 
 import { StatusBadge } from '@/components/dashboard/status-badge'
+import { ServiceLoadError } from '@/components/service-load-error'
 import { getServices } from '@/lib/api'
 import { EM_DASH, formatSuccessRate, formatTime } from '@/lib/format'
+import type { Service } from '@/lib/types'
 
 export const metadata = {
   title: 'Services',
 }
 
+/** Live data — see the note in app/page.tsx. */
+export const dynamic = 'force-dynamic'
+
 export default async function ServicesPage() {
-  const services = await getServices()
+  let services: Service[]
+  try {
+    services = await getServices()
+  } catch (error) {
+    console.error('Failed to load services:', error)
+    return <ServiceLoadError detail={error instanceof Error ? error.message : undefined} />
+  }
 
   return (
     <div className="flex-1 bg-canvas px-6 py-10 lg:px-10">

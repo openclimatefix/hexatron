@@ -20,18 +20,14 @@ const badgeVariants = cva(
   },
 )
 
-const dotVariants = cva('size-1.5 rounded-full', {
-  variants: {
-    status: {
-      healthy: 'bg-ink',
-      degraded: 'bg-flame',
-      down: 'hidden',
-      paused: 'bg-black/35',
-      unknown: 'bg-black/35',
-    },
-  },
-  defaultVariants: { status: 'unknown' },
-})
+/** Single source of dot colour, shared by the badge and the standalone dot. */
+const DOT_COLORS: Record<ServiceStatus, string> = {
+  healthy: 'bg-ink',
+  degraded: 'bg-flame',
+  down: 'bg-flame',
+  paused: 'bg-black/35',
+  unknown: 'bg-black/35',
+}
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {
   status: ServiceStatus
@@ -41,21 +37,13 @@ interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <span className={cn(badgeVariants({ status }), className)}>
-      <span className={dotVariants({ status })} aria-hidden />
+      {/* The `down` badge is a solid fill, so a dot on top would be redundant. */}
+      {status !== 'down' && <StatusDot status={status} />}
       {STATUS_LABELS[status]}
     </span>
   )
 }
 
 export function StatusDot({ status, className }: { status: ServiceStatus; className?: string }) {
-  return (
-    <span
-      className={cn('size-1.5 rounded-full', className, {
-        'bg-ink': status === 'healthy',
-        'bg-flame': status === 'degraded' || status === 'down',
-        'bg-black/35': status === 'paused' || status === 'unknown',
-      })}
-      aria-hidden
-    />
-  )
+  return <span className={cn('size-1.5 rounded-full', DOT_COLORS[status], className)} aria-hidden />
 }

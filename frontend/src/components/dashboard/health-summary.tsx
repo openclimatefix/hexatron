@@ -1,15 +1,7 @@
 import { StatusDot } from '@/components/dashboard/status-badge'
-import { SERVICE_STATUSES, countByStatus, isAttentionStatus } from '@/lib/status'
+import { SERVICE_STATUSES, STATUS_LABELS, countByStatus, isAttentionStatus } from '@/lib/status'
 import { cn } from '@/lib/utils'
-import type { Service, ServiceStatus } from '@/lib/types'
-
-const STATUS_TEXT: Record<ServiceStatus, string> = {
-  healthy: 'healthy',
-  degraded: 'degraded',
-  down: 'down',
-  paused: 'paused',
-  unknown: 'unknown',
-}
+import type { Service } from '@/lib/types'
 
 /**
  * Single-line fleet roll-up. Tinted only when something actually needs
@@ -36,7 +28,7 @@ export function HealthSummary({ services }: { services: Service[] }) {
             <span key={status} className="flex items-center gap-2">
               {index > 0 && <span className="text-black/30">·</span>}
               <span className={cn(isAttentionStatus(status) ? 'text-flame-text' : 'text-black/65')}>
-                {counts[status]} {STATUS_TEXT[status]}
+                {counts[status]} {STATUS_LABELS[status].toLowerCase()}
               </span>
             </span>
           ))}

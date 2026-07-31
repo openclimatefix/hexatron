@@ -21,7 +21,11 @@ function nextRunLabel(service: Service): string {
   if (service.metrics.next_run_at) return formatTime(service.metrics.next_run_at)
   if (service.status === 'paused') return 'Paused'
   if (service.status === 'unknown') return 'No data'
-  return `${EM_DASH} blocked`
+  // Only a failing service has a *blocked* next run. Anything else without a
+  // scheduled run is simply unscheduled — asset- or manually-triggered DAGs
+  // legitimately have no next_run_at.
+  if (service.status === 'down') return `${EM_DASH} blocked`
+  return 'Not scheduled'
 }
 
 export function ServiceCard({ service, className }: { service: Service; className?: string }) {

@@ -3,8 +3,8 @@
 Service-centric operational dashboard for the Open Climate Fix platform.
 
 Instead of exposing Airflow directly, Hexatron presents the health of business
-services (Site Forecast, Consumer, Data Platform, Quartz) so engineers can answer
-one question quickly: **"Is everything running as expected?"**
+services (Solar Forecast, Wind Forecast, Consumers, DP, API, UI) so engineers can
+answer one question quickly: **"Is everything running as expected?"**
 
 ## Structure
 
@@ -59,18 +59,24 @@ Returns the health status of all configured business services.
 
 **Query Parameters**
 
-| Parameter  | Type   | Required | Description                                       |
-|------------|--------|----------|---------------------------------------------------|
-| `search`   | string | No       | Case-insensitive substring filter on service name |
-| `category` | string | No       | Exact match on service category                   |
+| Parameter  | Type   | Required | Description                                                 |
+|------------|--------|----------|-------------------------------------------------------------|
+| `search`   | string | No       | Case-insensitive substring on service name, category or DAG id |
+| `category` | string | No       | Exact match on service category                             |
+
+> **`search` scope widened — not yet implemented in the backend.** The dashboard's
+> box is labelled "Search DAGs…", so it must match DAG ids (`pvlive` should find
+> Consumers) as well as service names. The frontend filters this way today; a
+> name-only backend would silently return nothing for those queries once
+> `USE_STUB_DATA=false`.
 
 **Response**
 
 ```json
 [
-  { "id": "site-forecast", "name": "Site Forecast", "status": "healthy" },
-  { "id": "consumer",      "name": "Consumer",      "status": "failed"  },
-  { "id": "data-platform", "name": "Data Platform", "status": "healthy" }
+  { "id": "solar-forecast", "name": "Solar Forecast", "status": "degraded" },
+  { "id": "consumer",       "name": "Consumers",      "status": "healthy"  },
+  { "id": "data-platform",  "name": "DP",             "status": "healthy"  }
 ]
 ```
 
@@ -99,15 +105,18 @@ Returns a single service with the health status of each underlying DAG.
 ```json
 {
   "id":     "consumer",
-  "name":   "Consumer",
-  "status": "failed",
+  "name":   "Consumers",
+  "status": "healthy",
   "dags": [
-    { "dag_id": "ecmwf_consumer",     "status": "healthy" },
-    { "dag_id": "metoffice_consumer", "status": "failed"  },
-    { "dag_id": "pvlive_consumer",    "status": "healthy" }
+    { "dag_id": "ecmwf_consumer",     "status": "healthy"  },
+    { "dag_id": "metoffice_consumer", "status": "degraded" },
+    { "dag_id": "pvlive_consumer",    "status": "healthy"  }
   ]
 }
 ```
+
+The dashboard needs more per-DAG fields than this — see
+[Proposed contract additions](#proposed-contract-additions).
 
 **Status Codes**
 
@@ -125,7 +134,7 @@ Returns a single service with the health status of each underlying DAG.
 **Examples**
 
 ```bash
-curl http://localhost:8080/services/site-forecast
+curl http://localhost:8080/services/solar-forecast
 curl http://localhost:8080/services/consumer
 curl http://localhost:8080/services/data-platform
 ```
@@ -203,10 +212,17 @@ control is currently presentational.
 
 ### Mock Data (Current Phase)
 
-Defined in `backend/internal/api/controller/services.go`.
+The registry lives in `backend/config/services.yaml`. The frontend's equivalent
+stub — which also carries metrics and run history — is in
+`frontend/src/lib/stub-data.ts`.
 
-| Service ID      | Category | DAGs                                                                                                              | Status    |
-|-----------------|----------|-------------------------------------------------------------------------------------------------------------------|-----------|
-| `site-forecast` | Forecast | `site_forecast` → healthy                                                                                         | `healthy` |
-| `consumer`      | Consumer | `ecmwf_consumer` → healthy, `metoffice_consumer` → **failed**, `pvlive_consumer` → healthy                       | `failed`  |
-| `data-platform` | Platform | `save_to_dp` → healthy                                                                                            | `healthy` |
+| Service ID       | Name           | Category    | DAGs                                                     | Status     |
+|------------------|----------------|-------------|----------------------------------------------------------|------------|
+| `solar-forecast` | Solar Forecast | Forecast    | `solar_forecast_national`, `solar_forecast_sites`         | `degraded` |
+| `wind-forecast`  | Wind Forecast  | Forecast    | `wind_forecast_national`                                  | `down`     |
+| `consumer`       | Consumers      | Consumer    | `ecmwf_consumer`, `metoffice_consumer`, `pvlive_consumer` | `healthy`  |
+| `data-platform`  | DP             | Platform    | `save_to_dp`                                              | `healthy`  |
+| `api`            | API            | Application | `api_healthcheck`                                         | `paused`   |
+| `ui`             | UI             | Application | —                                                          | `unknown`  |
+
+Statuses above are the stub's demo values, chosen to exercise all five states.
