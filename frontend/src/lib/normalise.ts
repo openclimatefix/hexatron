@@ -8,14 +8,33 @@ import type { Dag, DagRun, DagRunState, Metrics, Service, ServiceStatus } from '
  * `@/lib/types`.
  */
 
-const SERVICE_STATUSES: ServiceStatus[] = ['healthy', 'degraded', 'down', 'paused', 'unknown']
+const SERVICE_STATUSES: ServiceStatus[] = [
+  'healthy',
+  'degraded',
+  'down',
+  'running',
+  'paused',
+  'unknown',
+]
 const RUN_STATES: DagRunState[] = ['queued', 'running', 'success', 'failed']
+
+/**
+ * Backend statuses that mean one of ours under a different name. `failed` is
+ * the original three-state contract's term for what we call `down`; `success`
+ * and `queued` are Airflow run states that surface here in places.
+ */
+const STATUS_ALIASES: Record<string, ServiceStatus> = {
+  failed: 'down',
+  success: 'healthy',
+  queued: 'running',
+}
 
 /** Anything unrecognised becomes `unknown` rather than breaking the badge. */
 export function toServiceStatus(value: unknown): ServiceStatus {
   if (typeof value === 'string') {
-    const lower = value.toLowerCase() as ServiceStatus
-    if (SERVICE_STATUSES.includes(lower)) return lower
+    const lower = value.toLowerCase()
+    if ((SERVICE_STATUSES as string[]).includes(lower)) return lower as ServiceStatus
+    if (lower in STATUS_ALIASES) return STATUS_ALIASES[lower]
   }
   return 'unknown'
 }
@@ -164,6 +183,8 @@ export function normaliseService(raw: unknown): Service | null {
   const dags = arr(s.dags)
     .map(normaliseDag)
     .filter((dag): dag is Dag => dag !== null)
+
+  console.log('SERVICE_STATUSES', s.name)
 
   return {
     id,

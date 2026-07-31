@@ -15,7 +15,7 @@ export type DagRunType = 'scheduled' | 'manual' | 'backfill' | 'asset_triggered'
  * contract: `paused` (intentional) and `degraded` (partial failure) are
  * distinct operational conditions that `failed` alone collapses.
  */
-export type ServiceStatus = 'healthy' | 'degraded' | 'down' | 'paused' | 'unknown'
+export type ServiceStatus = 'healthy' | 'degraded' | 'down' | 'running' | 'paused' | 'unknown'
 
 /** Subset of Airflow's DagRun object that the dashboard renders. */
 export interface DagRun {

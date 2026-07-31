@@ -7,11 +7,12 @@ import { usePathname } from 'next/navigation'
 import { Nav } from '@/components/nav'
 import { SearchInput } from '@/components/dashboard/search-input'
 import { TimeRangeSelect } from '@/components/dashboard/time-range-select'
+import { ScenarioSelect } from '@/components/dashboard/scenario-select'
 import { useDashboardFilters } from '@/components/dashboard/filter-context'
 
 export function Header() {
   const pathname = usePathname()
-  const { search, setSearch, range, setRange } = useDashboardFilters()
+  const { search, setSearch, range, setRange, scenario, setScenario } = useDashboardFilters()
 
   // The filters only act on the dashboard grid, so they'd be inert elsewhere.
   const showFilters = pathname === '/'
@@ -35,6 +36,7 @@ export function Header() {
       {showFilters && (
         <div className="ml-auto flex flex-wrap items-center gap-3 py-3">
           <SearchInput value={search} onChange={setSearch} />
+          <ScenarioSelect value={scenario} onChange={setScenario} />
           <TimeRangeSelect value={range} onChange={setRange} />
         </div>
       )}
