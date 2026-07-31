@@ -28,6 +28,22 @@ export interface DagRun {
   run_type: DagRunType
 }
 
+/**
+ * Run aggregates over the selected time window. Reported per DAG — that's the
+ * level Airflow actually measures at. All nullable so unmonitored DAGs render
+ * cleanly.
+ */
+export interface Metrics {
+  total_runs: number
+  failed_runs: number
+  /** 0..1, or null when there are no runs to measure. */
+  success_rate: number | null
+  avg_duration_seconds: number | null
+  latest_duration_seconds: number | null
+  last_run_at: string | null
+  next_run_at: string | null
+}
+
 /** Subset of Airflow's DAG object, plus the runs backing its history strip. */
 export interface Dag {
   dag_id: string
@@ -40,21 +56,7 @@ export interface Dag {
   status: ServiceStatus
   /** Most recent first. */
   runs: DagRun[]
-}
-
-/**
- * Hexatron-derived aggregates across a service's DAGs, over the selected
- * time window. All nullable so services with no monitoring data render cleanly.
- */
-export interface ServiceMetrics {
-  total_runs: number
-  failed_runs: number
-  /** 0..1, or null when there are no runs to measure. */
-  success_rate: number | null
-  avg_duration_seconds: number | null
-  latest_duration_seconds: number | null
-  last_run_at: string | null
-  next_run_at: string | null
+  metrics: Metrics
 }
 
 export interface Service {
@@ -66,7 +68,12 @@ export interface Service {
   /** Upstream service ids. Drives the dependency graph edges. */
   depends_on: string[]
   dags: Dag[]
-  metrics: ServiceMetrics
+  /**
+   * Rolled up from `dags` rather than read from the payload — the service-level
+   * block is being retired, and summing the DAGs keeps the card consistent with
+   * the per-DAG numbers behind it.
+   */
+  metrics: Metrics
   /** Operator-facing explanation, e.g. "Paused for maintenance". */
   note: string | null
 }

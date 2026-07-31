@@ -53,8 +53,10 @@ export function RunHistory({
         <span key={`empty-${index}`} className="size-2.5 rounded-[2px] bg-black/8" />
       ))}
       {recent.map((run) => (
+        // dag_run_id is derived from the schedule, so it's only unique within a
+        // DAG — two DAGs on the same cron collide once runs are merged here.
         <span
-          key={run.dag_run_id}
+          key={`${run.dag_id}__${run.dag_run_id}`}
           className={cn('size-2.5 rounded-[2px]', STATE_CLASSES[run.state])}
         />
       ))}
