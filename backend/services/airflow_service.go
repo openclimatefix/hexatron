@@ -7,8 +7,9 @@ import (
 
 	"github.com/openclimatefix/hexatron/backend/clients"
 	"github.com/openclimatefix/hexatron/backend/constants"
+	"github.com/openclimatefix/hexatron/backend/models"
 	clientstructs "github.com/openclimatefix/hexatron/backend/structures/clients"
-	"github.com/openclimatefix/hexatron/backend/structures/responses"
+	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
 )
 
 // AirflowService is the concrete implementation of the AirflowService interface.
@@ -18,14 +19,18 @@ type AirflowService struct {
 	airflowClient *clients.AirflowClient
 }
 
-// NewAirflowService creates an AirflowService loaded with services from services.yaml.
-func NewAirflowService(configPath string, clientCfg clientstructs.AirflowClientConfig) *AirflowService {
-	registry, err := NewServiceRegistry(configPath)
+// NewAirflowService creates an AirflowService using application config.
+// It maps AirflowBaseURL and AirflowCookie from cfg to the client internally.
+func NewAirflowService(cfg *configstructs.Config) *AirflowService {
+	registry, err := NewServiceRegistry(cfg.ServicesConfigPath)
 	if err != nil {
-		log.Fatalf("failed to initialize service registry from %s: %v", configPath, err)
+		log.Fatalf("failed to initialize service registry from %s: %v", cfg.ServicesConfigPath, err)
 	}
 
-	airflowClient := clients.NewAirflowClient(clientCfg)
+	airflowClient := clients.NewAirflowClient(clientstructs.AirflowClientConfig{
+		BaseURL: cfg.AirflowBaseURL,
+		Cookie:  cfg.AirflowCookie,
+	})
 
 	return &AirflowService{
 		registry:      registry,
@@ -45,10 +50,9 @@ func mapAirflowStateToStatus(state string) string {
 	}
 }
 
-// getDAGStatus fetches the status for a given DAG ID.
+// getDAGStatus fetches the runtime status for a given DAG ID.
 func (s *AirflowService) getDAGStatus(dagID string) string {
-	airflowClient := s.airflowClient
-	dagRun, err := airflowClient.GetLatestDagRun(dagID)
+	dagRun, err := s.airflowClient.GetLatestDagRun(dagID)
 	if err == nil && dagRun != nil {
 		return mapAirflowStateToStatus(dagRun.State)
 	}
@@ -57,7 +61,7 @@ func (s *AirflowService) getDAGStatus(dagID string) string {
 
 // aggregateStatus derives the overall service status from its DAG statuses.
 // Returns "failed" if any DAG is failed or unknown; otherwise "healthy".
-func aggregateStatus(dags []responses.DAGStatus) string {
+func aggregateStatus(dags []models.DAGStatus) string {
 	for _, d := range dags {
 		if d.Status == constants.StatusFailed || d.Status == constants.StatusUnknown {
 			return constants.StatusFailed
@@ -66,9 +70,21 @@ func aggregateStatus(dags []responses.DAGStatus) string {
 	return constants.StatusHealthy
 }
 
-// ListServices returns all configured services loaded from services.yaml.
-func (s *AirflowService) ListServices(search, category string) responses.ServiceListResponse {
-	result := make(responses.ServiceListResponse, 0)
+// buildDAGStatuses builds a []models.DAGStatus for the given DAG IDs using the provided status function.
+func buildDAGStatuses(dagIDs []string, statusFn func(string) string) []models.DAGStatus {
+	statuses := make([]models.DAGStatus, 0, len(dagIDs))
+	for _, dagID := range dagIDs {
+		statuses = append(statuses, models.DAGStatus{
+			DAGID:  dagID,
+			Status: statusFn(dagID),
+		})
+	}
+	return statuses
+}
+
+// ListServices returns all configured services matching the optional search and category filters.
+func (s *AirflowService) ListServices(search, category string) []models.ServiceSummary {
+	result := make([]models.ServiceSummary, 0)
 	for _, service := range s.registry.All() {
 		if search != "" && !strings.Contains(strings.ToLower(service.Name), strings.ToLower(search)) {
 			continue
@@ -77,15 +93,9 @@ func (s *AirflowService) ListServices(search, category string) responses.Service
 			continue
 		}
 
-		dagStatuses := make([]responses.DAGStatus, 0, len(service.DAGIDs))
-		for _, dagID := range service.DAGIDs {
-			dagStatuses = append(dagStatuses, responses.DAGStatus{
-				DAGID:  dagID,
-				Status: s.getDAGStatus(dagID),
-			})
-		}
+		dagStatuses := buildDAGStatuses(service.DAGIDs, s.getDAGStatus)
 
-		result = append(result, responses.ServiceSummary{
+		result = append(result, models.ServiceSummary{
 			ID:     service.ID,
 			Name:   service.Name,
 			Status: aggregateStatus(dagStatuses),
@@ -94,23 +104,16 @@ func (s *AirflowService) ListServices(search, category string) responses.Service
 	return result
 }
 
-// GetServiceByID returns the detail response for a single service from services.yaml.
-func (s *AirflowService) GetServiceByID(serviceID string) (responses.ServiceDetailResponse, bool) {
-	registry := s.registry
-	service, found := registry.ByID(serviceID)
+// GetServiceByID returns the detail for a single service from services.yaml.
+func (s *AirflowService) GetServiceByID(serviceID string) (models.ServiceDetail, bool) {
+	service, found := s.registry.ByID(serviceID)
 	if !found {
-		return responses.ServiceDetailResponse{}, false
+		return models.ServiceDetail{}, false
 	}
 
-	dagStatuses := make([]responses.DAGStatus, 0, len(service.DAGIDs))
-	for _, dagID := range service.DAGIDs {
-		dagStatuses = append(dagStatuses, responses.DAGStatus{
-			DAGID:  dagID,
-			Status: s.getDAGStatus(dagID),
-		})
-	}
+	dagStatuses := buildDAGStatuses(service.DAGIDs, s.getDAGStatus)
 
-	return responses.ServiceDetailResponse{
+	return models.ServiceDetail{
 		ID:     service.ID,
 		Name:   service.Name,
 		Status: aggregateStatus(dagStatuses),

@@ -8,3 +8,26 @@ type Service struct {
 	Category string   `yaml:"category"`
 	DAGIDs   []string `yaml:"dags"`
 }
+
+// DAGStatus represents the computed runtime status of a single DAG.
+type DAGStatus struct {
+	DAGID  string
+	Status string
+}
+
+// ServiceSummary represents the computed status summary of a service.
+type ServiceSummary struct {
+	ID     string
+	Name   string
+	Status string
+}
+
+// ServiceDetail represents the full computed status detail of a service,
+// including individual DAG statuses.
+type ServiceDetail struct {
+	ID     string
+	Name   string
+	Status string
+	DAGs   []DAGStatus
+}
+

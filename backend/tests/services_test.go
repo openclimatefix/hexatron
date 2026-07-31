@@ -5,7 +5,7 @@ import (
 
 	"github.com/openclimatefix/hexatron/backend/constants"
 	"github.com/openclimatefix/hexatron/backend/services"
-	clientstructs "github.com/openclimatefix/hexatron/backend/structures/clients"
+	configstructs "github.com/openclimatefix/hexatron/backend/structures/config"
 )
 
 func TestServiceRegistry(t *testing.T) {
@@ -34,27 +34,32 @@ func TestServiceRegistry(t *testing.T) {
 }
 
 func TestAirflowServiceListAndGet(t *testing.T) {
-	clientCfg := clientstructs.AirflowClientConfig{
-		BaseURL: "http://127.0.0.1:38000",
-		Cookie:  "",
+	cfg := &configstructs.Config{
+		ServicesConfigPath: constants.ServicesConfigPath,
+		AirflowBaseURL:     constants.AirflowDefaultURL,
+		AirflowCookie:      "",
 	}
-	airflowService := services.NewAirflowService(constants.ServicesConfigPath, clientCfg)
+	airflowService := services.NewAirflowService(cfg)
 
 	// Test ListServices
 	listResp := airflowService.ListServices("", "")
 	if len(listResp) == 0 {
-		t.Fatal("expected listResp to return services, got empty")
+		t.Fatal("expected ListServices to return services, got empty")
 	}
 
-	// Test GetServiceByID
-	detailResp, found := airflowService.GetServiceByID("forecasts")
+	// Test GetServiceByID - found
+	detail, found := airflowService.GetServiceByID("forecasts")
 	if !found {
 		t.Fatalf("expected service 'forecasts' to be found")
 	}
-	if detailResp.ID != "forecasts" {
-		t.Errorf("expected ID 'forecasts', got %s", detailResp.ID)
+	if detail.ID != "forecasts" {
+		t.Errorf("expected ID 'forecasts', got %s", detail.ID)
+	}
+	if len(detail.DAGs) == 0 {
+		t.Errorf("expected detail.DAGs to be non-empty for 'forecasts'")
 	}
 
+	// Test GetServiceByID - not found
 	_, notFound := airflowService.GetServiceByID("invalid-service")
 	if notFound {
 		t.Errorf("expected invalid service to return false")

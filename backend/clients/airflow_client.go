@@ -6,7 +6,6 @@
 package clients
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/openclimatefix/hexatron/backend/constants"
@@ -32,12 +31,9 @@ func (c *AirflowClient) GetHealth() error {
 	return nil
 }
 
-// TODO: GetLatestDagRun fetches the most recent run for the given DAG ID
-// Here we have to Do API Calls.
+// TODO: GetLatestDagRun fetches the most recent run for the given DAG ID.
+// Phase 2: make real HTTP call to c.config.BaseURL using c.config.Cookie.
 func (c *AirflowClient) GetLatestDagRun(dagID string) (*clientstructs.DAGRun, error) {
-	if dagID == "metoffice_consumer" {
-		return nil, errors.New(constants.AirflowStateFailed)
-	}
 	return &clientstructs.DAGRun{
 		DAGRunID: "latest",
 		State:    constants.AirflowStateSuccess,
@@ -48,3 +44,4 @@ func (c *AirflowClient) GetLatestDagRun(dagID string) (*clientstructs.DAGRun, er
 func (c *AirflowClient) GetTaskInstances(dagID, dagRunID string) error {
 	return nil
 }
+

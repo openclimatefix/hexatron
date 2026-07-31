@@ -16,8 +16,9 @@ func Load() *configstructs.Config {
 	}
 
 	return &configstructs.Config{
-		Addr:           port,
-		AirflowBaseURL: Env(constants.AirflowBaseURLEnv, constants.AirflowDefaultURL),
-		AirflowCookie:  Env(constants.AirflowCookieEnv, ""),
+		Addr:               port,
+		AirflowBaseURL:     Env(constants.AirflowBaseURLEnv, constants.AirflowDefaultURL),
+		AirflowCookie:      Env(constants.AirflowCookieEnv, ""),
+		ServicesConfigPath: Env("SERVICES_CONFIG_PATH", constants.ServicesConfigPath),
 	}
 }
