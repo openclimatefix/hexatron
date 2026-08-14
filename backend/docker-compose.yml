@@ -6,6 +6,11 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      # Overrides .env, which holds the host-native address so `make run` works.
+      # Inside the container, 127.0.0.1 is the container itself, so Airflow and
+      # the Data Platform have to be reached via the host gateway below.
+      - AIRFLOW_BASE_URL=http://host.docker.internal:38000
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

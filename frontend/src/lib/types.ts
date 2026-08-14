@@ -15,7 +15,14 @@ export type DagRunType = 'scheduled' | 'manual' | 'backfill' | 'asset_triggered'
  * contract: `paused` (intentional) and `degraded` (partial failure) are
  * distinct operational conditions that `failed` alone collapses.
  */
-export type ServiceStatus = 'healthy' | 'degraded' | 'down' | 'running' | 'paused' | 'unknown'
+export type ServiceStatus =
+  | 'healthy'
+  | 'degraded'
+  | 'down'
+  | 'running'
+  | 'paused'
+  | 'unknown'
+  | 'planned'
 
 /** Subset of Airflow's DagRun object that the dashboard renders. */
 export interface DagRun {
@@ -57,6 +64,30 @@ export interface Dag {
   /** Most recent first. */
   runs: DagRun[]
   metrics: Metrics
+  /**
+   * Deep link to this DAG's grid view in Airflow. The backend rewrites the
+   * host so it's reachable from a browser rather than from inside its own
+   * container.
+   */
+  airflow_url: string | null
+}
+
+/**
+ * Result of an out-of-band liveness probe, for services Airflow cannot speak
+ * for. Narrower than `ServiceStatus` on purpose: a heartbeat answers "is it
+ * answering", not "is it well".
+ */
+export interface Heartbeat {
+  type: 'http' | 'grpc'
+  /** URL for http, host:port for grpc. */
+  target: string
+  /** `unknown` means the probe itself could not be carried out. */
+  status: 'healthy' | 'down' | 'unknown'
+  /** null unless a round trip completed. */
+  latency_ms: number | null
+  checked_at: string | null
+  /** Short operator-facing reason, e.g. "HTTP 503". */
+  detail: string | null
 }
 
 export interface Service {
@@ -74,8 +105,16 @@ export interface Service {
    * the per-DAG numbers behind it.
    */
   metrics: Metrics
+  /**
+   * Short phrase naming what is wrong, e.g. "uk-forecast-clouds failing
+   * (non-critical)". Null when the service is well. Distinct from `note`:
+   * derived from live state rather than written by hand.
+   */
+  status_reason: string | null
   /** Operator-facing explanation, e.g. "Paused for maintenance". */
   note: string | null
+  /** Absent for services with no health_check configured. */
+  heartbeat: Heartbeat | null
 }
 
 export const TIME_RANGES = ['1h', '24h', '7d', '30d'] as const

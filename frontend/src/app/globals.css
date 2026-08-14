@@ -1,8 +1,61 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
+
+/* Slim scrollbar for scroll containers inside chrome — the platform default is
+   heavy enough to dominate a modal. Kept visible rather than hidden: the DAG
+   list runs to ten rows and there needs to be some hint there's more below. */
+@utility scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 0.18) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: rgb(0 0 0 / 0.18);
+    border-radius: 9999px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(0 0 0 / 0.32);
+  }
+}
+
+/* In-flight runs get two animations on the same clock: a radar ping spreading
+   outward, and the fill itself breathing. The ping alone was easy to miss at
+   10px, and the fill change is what reads at a glance.
+   box-shadow rather than transform, so the square never overlaps its neighbours
+   and steals their hover. */
+@keyframes run-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(37 99 235 / 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgb(37 99 235 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(37 99 235 / 0);
+  }
+}
+
+@keyframes run-fade {
+  0%,
+  100% {
+    background-color: rgb(37 99 235 / 0.5);
+  }
+  50% {
+    background-color: rgb(37 99 235 / 1);
+  }
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -20,6 +73,13 @@
   --color-flame-soft: #fdeee8;
   --color-canvas: #f7f6f3;
   --color-ink: #16110f;
+
+  /* In-flight work. Deliberately a third hue: ink reads as "finished well" and
+     flame as "went wrong", so a run still in progress needs its own colour
+     rather than a shade of either. Passes AA on white for small text. */
+  --color-active: #2563eb;
+
+  --animate-run-pulse: run-pulse 1.4s ease-out infinite, run-fade 1.4s ease-in-out infinite;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

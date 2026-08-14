@@ -33,7 +33,7 @@ export function ServiceDagsDialog({ service }: { service: Service }) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="scrollbar-slim max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-3">
             <span className="font-display text-2xl font-medium tracking-tight">{service.name}</span>

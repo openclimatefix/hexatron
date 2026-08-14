@@ -23,6 +23,7 @@ import (
 type AirflowService struct {
 	registry      *ServiceRegistry
 	airflowClient *clients.AirflowClient
+	heartbeats    *HeartbeatService
 }
 
 // NewAirflowService creates an AirflowService using application config.
@@ -40,6 +41,7 @@ func NewAirflowService(cfg *configstructs.Config) *AirflowService {
 	return &AirflowService{
 		registry:      registry,
 		airflowClient: airflowClient,
+		heartbeats:    NewHeartbeatService(),
 	}
 }
 
@@ -76,6 +78,10 @@ func (s *AirflowService) ListServices(ctx context.Context, search, category stri
 
 	snap := &fullSnapshot{meta: meta, runs: runsMap}
 
+	// Probed once for the whole list rather than per service, so the concurrent
+	// fan-out happens regardless of how far the filters narrow the result.
+	beats := s.heartbeats.CheckAll(ctx, allSvcs)
+
 	searchLower := strings.ToLower(strings.TrimSpace(search))
 	categoryLower := strings.ToLower(strings.TrimSpace(category))
 
@@ -102,7 +108,12 @@ func (s *AirflowService) ListServices(ctx context.Context, search, category stri
 			}
 		}
 
-		svcResp := s.buildServiceResponse(svc, dagIDs, snap)
+		var hb *responses.Heartbeat
+		if beat, ok := beats[svc.ID]; ok {
+			hb = &beat
+		}
+
+		svcResp := s.buildServiceResponse(svc, dagIDs, snap, hb)
 		result = append(result, svcResp)
 	}
 
@@ -138,12 +149,12 @@ func (s *AirflowService) GetServiceByID(ctx context.Context, serviceID string) (
 	}
 
 	snap := &fullSnapshot{meta: meta, runs: runsMap}
-	svcResp := s.buildServiceResponse(svc, dagIDs, snap)
+	svcResp := s.buildServiceResponse(svc, dagIDs, snap, s.heartbeats.Check(ctx, svc))
 
 	return svcResp, true, nil
 }
 
-func (s *AirflowService) buildServiceResponse(svc models.Service, dagIDs []string, snap *fullSnapshot) responses.ServiceResponse {
+func (s *AirflowService) buildServiceResponse(svc models.Service, dagIDs []string, snap *fullSnapshot, hb *responses.Heartbeat) responses.ServiceResponse {
 	dags := make([]responses.DAGDetail, 0, len(dagIDs))
 
 	for _, id := range dagIDs {
@@ -229,17 +240,26 @@ func (s *AirflowService) buildServiceResponse(svc models.Service, dagIDs []strin
 	}
 
 	metrics := computeServiceMetrics(dags, snap.meta)
-	status := deriveStatus(dags, metrics)
+	dagStatus, statusReason := deriveStatus(svc, dags, metrics)
+	status := ApplyHeartbeat(dagStatus, hb)
+
+	// A heartbeat that overrode the DAG verdict owns the explanation too —
+	// otherwise a card reads "Down" above a reason about a DAG that is fine.
+	if status != dagStatus && hb != nil {
+		statusReason = heartbeatReason(hb)
+	}
 
 	return responses.ServiceResponse{
-		ID:        svc.ID,
-		Name:      svc.Name,
-		Category:  svc.Category,
-		Status:    status,
-		DependsOn: svc.DependsOn,
-		DAGs:      dags,
-		Metrics:   metrics,
-		Note:      nil,
+		ID:           svc.ID,
+		Name:         svc.Name,
+		Category:     svc.Category,
+		Status:       status,
+		StatusReason: statusReason,
+		DependsOn:    svc.DependsOn,
+		DAGs:         dags,
+		Metrics:      metrics,
+		Note:         nil,
+		Heartbeat:    hb,
 	}
 }
 
@@ -386,9 +406,18 @@ func computeServiceMetrics(dags []responses.DAGDetail, dagMeta map[string]airflo
 	}
 }
 
-func deriveStatus(dags []responses.DAGDetail, metrics responses.ServiceMetrics) string {
+// deriveStatus computes a service's status and, when something is wrong, a
+// short phrase naming what.
+//
+// The reason matters as much as the status: a red card that does not say which
+// DAG failed sends the operator hunting through a modal to find out.
+func deriveStatus(svc models.Service, dags []responses.DAGDetail, metrics responses.ServiceMetrics) (string, *string) {
+	if svc.Planned && len(dags) == 0 {
+		return constants.StatusPlanned, nil
+	}
+
 	if len(dags) == 0 {
-		return constants.StatusUnknown
+		return constants.StatusUnknown, nil
 	}
 
 	allPaused := true
@@ -399,39 +428,71 @@ func deriveStatus(dags []responses.DAGDetail, metrics responses.ServiceMetrics) 
 		}
 	}
 	if allPaused {
-		return constants.StatusPaused
+		return constants.StatusPaused, nil
 	}
 
 	if metrics.TotalRuns == 0 || metrics.SuccessRate == nil {
-		return constants.StatusUnknown
+		return constants.StatusUnknown, nil
 	}
 
-	hasDown := false
+	// Collected rather than short-circuited: naming the failing DAGs is the
+	// point, and which of them are critical decides the severity.
+	var criticalFailures, nonCriticalFailures []string
 	hasRunning := false
+
 	for _, dag := range dags {
-		if len(dag.Runs) > 0 {
-			firstState := dag.Runs[0].State
-			if firstState == constants.AirflowStateFailed || firstState == constants.AirflowStateUpstreamFailed {
-				hasDown = true
-				break
+		if len(dag.Runs) == 0 {
+			continue
+		}
+		switch dag.Runs[0].State {
+		case constants.AirflowStateFailed, constants.AirflowStateUpstreamFailed:
+			if svc.IsCritical(dag.DAGID) {
+				criticalFailures = append(criticalFailures, dag.DAGID)
+			} else {
+				nonCriticalFailures = append(nonCriticalFailures, dag.DAGID)
 			}
-			if firstState == constants.AirflowStateRunning {
-				hasRunning = true
-			}
+		case constants.AirflowStateRunning:
+			hasRunning = true
 		}
 	}
-	if hasDown {
-		return constants.StatusFailed
+
+	if len(criticalFailures) > 0 {
+		return constants.StatusFailed, reason(criticalFailures, "failing")
 	}
+
+	// A non-critical DAG cannot down the service, but it must not be silent
+	// either — degraded, and named.
+	if len(nonCriticalFailures) > 0 {
+		return constants.StatusDegraded, reason(nonCriticalFailures, "failing (non-critical)")
+	}
+
 	if hasRunning {
-		return constants.StatusRunning
+		return constants.StatusRunning, nil
 	}
 
 	if *metrics.SuccessRate < 0.95 {
-		return constants.StatusDegraded
+		pct := *metrics.SuccessRate * 100
+		msg := fmt.Sprintf("%.1f%% success over %d runs", pct, metrics.TotalRuns)
+		return constants.StatusDegraded, &msg
 	}
 
-	return constants.StatusHealthy
+	return constants.StatusHealthy, nil
+}
+
+// reason names the offending DAGs, summarising past two so the phrase stays
+// short enough to sit on a card.
+func reason(dagIDs []string, suffix string) *string {
+	var subject string
+	switch len(dagIDs) {
+	case 1:
+		subject = dagIDs[0]
+	case 2:
+		subject = dagIDs[0] + " and " + dagIDs[1]
+	default:
+		subject = fmt.Sprintf("%s and %d others", dagIDs[0], len(dagIDs)-1)
+	}
+	msg := subject + " " + suffix
+	return &msg
 }
 
 func mapStateToStatus(state string) string {

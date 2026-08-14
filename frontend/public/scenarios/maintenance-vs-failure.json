@@ -1706,7 +1706,7 @@
   },
   {
     "id": "data-platform",
-    "name": "DP",
+    "name": "Data Platform",
     "category": "Platform",
     "status": "healthy",
     "depends_on": [

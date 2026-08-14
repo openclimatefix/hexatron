@@ -1,24 +1,15 @@
+import { HeartbeatLine } from '@/components/dashboard/heartbeat-line'
 import { ServiceDagsDialog } from '@/components/dashboard/service-dags-dialog'
 import { RunHistory } from '@/components/dashboard/run-history'
 import { StatusBadge } from '@/components/dashboard/status-badge'
-import {
-  EM_DASH,
-  durationTrend,
-  formatDuration,
-  formatSuccessRate,
-  formatTime,
-  TREND_GLYPH,
-} from '@/lib/format'
-import { recentRuns } from '@/lib/status'
+import { RelativeTime } from '@/components/dashboard/relative-time'
+import { EM_DASH, formatSuccessRate } from '@/lib/format'
+import { isAttentionStatus, recentRuns } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import type { Service } from '@/lib/types'
 
-function lastRunLabel(service: Service): string {
-  return service.metrics.last_run_at ? formatTime(service.metrics.last_run_at) : 'No data'
-}
-
-function nextRunLabel(service: Service): string {
-  if (service.metrics.next_run_at) return formatTime(service.metrics.next_run_at)
+/** Why a service has no upcoming run — only reached when next_run_at is null. */
+function unscheduledLabel(service: Service): string {
   if (service.status === 'paused') return 'Paused'
   if (service.status === 'unknown') return 'No data'
   // Only a failing service has a *blocked* next run. Anything else without a
@@ -31,7 +22,13 @@ function nextRunLabel(service: Service): string {
 export function ServiceCard({ service, className }: { service: Service; className?: string }) {
   const { metrics } = service
   const successRate = formatSuccessRate(metrics.success_rate)
-  const trend = durationTrend(metrics.latest_duration_seconds, metrics.avg_duration_seconds)
+  // A service with a heartbeat but no DAGs — the UI, for one — has no run
+  // history, schedule or success rate to show. Rendering those rows as dashes
+  // implies missing data; the heartbeat is the whole story for these.
+  const heartbeatOnly = service.heartbeat !== null && service.dags.length === 0
+  // A planned service has no DAGs and never has run — there is no schedule or
+  // run history to show, just the "coming soon" badge and reason.
+  const noScheduleOrHistory = heartbeatOnly || service.status === 'planned'
 
   return (
     <article
@@ -45,47 +42,66 @@ export function ServiceCard({ service, className }: { service: Service; classNam
         <StatusBadge status={service.status} />
       </header>
 
-      <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-black/55">
-        <span>
-          Last <span className="text-black/75">{lastRunLabel(service)}</span>
-        </span>
-        <span>
-          Next <span className="text-black/75">{nextRunLabel(service)}</span>
-        </span>
-      </p>
-
-      <p className="text-sm">
-        {successRate === null ? (
-          <span className="text-black/45">
-            {EM_DASH} ({service.note ?? 'No monitoring data'})
-          </span>
-        ) : (
-          <>
-            <span className="font-medium text-ink">{successRate}% success</span>{' '}
-            <span className="text-black/45">
-              ({metrics.failed_runs} {metrics.failed_runs === 1 ? 'error' : 'errors'} /{' '}
-              {metrics.total_runs} runs)
-            </span>
-          </>
-        )}
-      </p>
-
-      <RunHistory
-        runs={recentRuns(service)}
-        muted={service.status === 'paused' || service.status === 'unknown'}
-      />
-
-      <p className="text-sm text-black/55">
-        Avg <span className="text-black/75">{formatDuration(metrics.avg_duration_seconds)}</span> ·
-        Latest{' '}
-        <span className="text-black/75">{formatDuration(metrics.latest_duration_seconds)}</span>{' '}
-        <span
-          className={cn(trend === 'slower' ? 'text-flame' : 'text-black/55')}
-          aria-label={trend === 'none' ? undefined : `Latest run ${trend} than average`}
+      {/* Sits directly under the badge it explains: a red card that doesn't say
+          which DAG failed sends the operator digging through the modal. */}
+      {service.status_reason && (
+        <p
+          className={cn(
+            'text-sm',
+            isAttentionStatus(service.status) ? 'text-flame-text' : 'text-black/55',
+          )}
         >
-          {TREND_GLYPH[trend]}
-        </span>
-      </p>
+          {service.status_reason}
+        </p>
+      )}
+
+      {!noScheduleOrHistory && (
+        <>
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-black/55">
+            <span>
+              Last{' '}
+              <RelativeTime
+                iso={metrics.last_run_at}
+                fallback="No data"
+                className="text-black/75"
+              />
+            </span>
+            <span>
+              Next{' '}
+              <RelativeTime
+                iso={metrics.next_run_at}
+                fallback={unscheduledLabel(service)}
+                className="text-black/75"
+              />
+            </span>
+          </p>
+
+          <p className="text-sm">
+            {successRate === null ? (
+              <span className="text-black/45">
+                {EM_DASH} ({service.note ?? 'No monitoring data'})
+              </span>
+            ) : (
+              <>
+                <span className="font-medium text-ink">{successRate}% success</span>{' '}
+                <span className="text-black/45">
+                  ({metrics.failed_runs} {metrics.failed_runs === 1 ? 'error' : 'errors'} /{' '}
+                  {metrics.total_runs} runs)
+                </span>
+              </>
+            )}
+          </p>
+        </>
+      )}
+
+      <HeartbeatLine heartbeat={service.heartbeat} />
+
+      {!noScheduleOrHistory && (
+        <RunHistory
+          runs={recentRuns(service)}
+          muted={service.status === 'paused' || service.status === 'unknown'}
+        />
+      )}
 
       <ServiceDagsDialog service={service} />
     </article>

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { DagList } from '@/components/dashboard/dag-list'
+import { HeartbeatLine } from '@/components/dashboard/heartbeat-line'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { ServiceLoadError } from '@/components/service-load-error'
 import { getService } from '@/lib/api'
@@ -59,6 +60,8 @@ export default async function ServiceDetailPage({ params }: PageProps) {
         </div>
 
         {service.note && <p className="mt-2 text-sm text-black/55">{service.note}</p>}
+
+        <HeartbeatLine heartbeat={service.heartbeat} className="mt-2" />
 
         <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-black/8 bg-white p-5 sm:grid-cols-4">
           <Stat label="Success rate" value={successRate ? `${successRate}%` : EM_DASH} />

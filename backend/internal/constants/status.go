@@ -9,4 +9,5 @@ const (
 	StatusUnknown  = "unknown"
 	StatusPaused   = "paused"
 	StatusDegraded = "degraded"
+	StatusPlanned  = "planned"
 )

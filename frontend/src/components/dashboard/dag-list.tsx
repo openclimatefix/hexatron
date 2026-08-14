@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { ElapsedTime } from '@/components/dashboard/elapsed-time'
 import { RunHistory } from '@/components/dashboard/run-history'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { EM_DASH, formatDuration, formatSuccessRate } from '@/lib/format'
@@ -17,6 +19,7 @@ export function DagList({ dags }: { dags: Dag[] }) {
     <ul className="flex flex-col gap-3">
       {dags.map((dag) => {
         const rate = formatSuccessRate(dag.metrics.success_rate)
+        const inFlight = dag.runs[0]?.state === 'running' ? dag.runs[0] : null
         return (
           <li
             key={dag.dag_id}
@@ -52,6 +55,13 @@ export function DagList({ dags }: { dags: Dag[] }) {
                     </span>
                   </>
                 )}
+                {inFlight?.start_date && (
+                  <>
+                    <span className="text-black/30"> · </span>
+                    <span className="text-black/55">Running for </span>
+                    <ElapsedTime since={inFlight.start_date} className="text-black/75" />
+                  </>
+                )}
               </p>
             </div>
 
@@ -61,6 +71,14 @@ export function DagList({ dags }: { dags: Dag[] }) {
               </span>
               <RunHistory runs={dag.runs} />
               <StatusBadge status={dag.status} />
+              {dag.airflow_url && (
+                <Button asChild variant="outline" size="sm">
+                  <a href={dag.airflow_url} target="_blank" rel="noreferrer">
+                    View in Airflow <span aria-hidden>↗</span>
+                    <span className="sr-only">— {dag.dag_display_name}</span>
+                  </a>
+                </Button>
+              )}
             </div>
           </li>
         )

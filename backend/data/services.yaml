@@ -7,8 +7,13 @@
 # a DAG that Airflow does not report.
 #
 # A service whose patterns match nothing has no DAGs and reports "unknown" —
-# wind-forecast and ui are in that state today. Hexatron warns at startup about
-# patterns matching no DAG, and about DAGs Airflow runs that no service claims.
+# wind-forecast is in that state today. Hexatron warns at startup about patterns
+# matching no DAG, and about DAGs Airflow runs that no service claims.
+#
+# health_check gives a service a status without going through Airflow, for the
+# things that are not pipelines. It is authoritative for "down" — a service that
+# will not answer is down whatever its DAG history says — but not for "healthy":
+# failing DAGs behind a responding endpoint still report degraded.
 #
 # depends_on lists upstream service ids and drives the dashboard's dependency
 # graph. Data flows: forecasts + consumers -> data-platform -> api -> ui.
@@ -24,6 +29,12 @@ services:
       - uk-forecast-*
       - uk-analysis-*
       - nl-forecast
+    # ...but the forecast still produces without fresh cloudcasting — it falls
+    # back to older cloud data. A cloudcasting failure is worth surfacing and
+    # not worth paging: it degrades the service rather than downing it.
+    non_critical_dag_patterns:
+      - uk-forecast-clouds
+      - uk-analysis-clouds
 
   # No wind DAGs in Airflow yet; reports unknown until there are.
   - id: wind-forecast
@@ -31,6 +42,8 @@ services:
     category: Forecast
     depends_on: []
     dag_patterns: []
+    # Not built yet, not unknown: reports "planned" instead of "unknown".
+    planned: true
 
   # UK and NL consumers sit under one service for now; split them later by
   # adding a second entry and narrowing the patterns to the nl-* DAGs.
@@ -42,7 +55,7 @@ services:
       - "*-consume-*"
 
   - id: data-platform
-    name: DP
+    name: Data Platform
     category: Platform
     depends_on:
       - solar-forecast
@@ -50,6 +63,17 @@ services:
       - consumer
     dag_patterns:
       - "*-manage-*"
+    # gRPC rather than REST: the platform speaks the standard
+    # grpc.health.v1.Health service. Target is a dial address (host:port), not a
+    # URL. Unlike the two below, this service also has DAGs — the heartbeat can
+    # mark it down, but healthy DAG status still comes from Airflow.
+    health_check:
+      type: grpc
+      # "localhost" inside the container is the container itself, so the DP would
+      # never be found. docker-compose.yml already maps host.docker.internal.
+      target: host.docker.internal:50051 # TODO: confirm real DP address/port
+      # grpc_service: "" checks the server as a whole; name one registered
+      # service here to narrow it.
 
   - id: api
     name: API
@@ -58,11 +82,27 @@ services:
       - data-platform
     dag_patterns:
       - "*-api-*"
+    health_check:
+      type: http
+      target: https://api.quartz.solar/health
+      expect_status: 200
 
-  # No Airflow DAGs yet — renders as "unknown" until monitoring is added.
+  # No Airflow DAGs — the UI is not a pipeline, so its health can only come from
+  # a heartbeat. Without one it reported "unknown" no matter how well it ran.
   - id: ui
     name: UI
     category: Application
     depends_on:
       - api
     dag_patterns: []
+    health_check:
+      type: http
+      target: https://app.quartz.solar/
+      # The app is auth-gated: a healthy server 307s an unauthenticated request
+      # to its login page. Probes do not follow redirects, so this asserts on
+      # what the app itself answered. A 200 here would actually be a surprise.
+      #
+      # This proves Next.js is up and its middleware is running; it does not
+      # prove the dashboard renders. An unauthenticated health route on the app
+      # would let us check that too.
+      expect_status: 307

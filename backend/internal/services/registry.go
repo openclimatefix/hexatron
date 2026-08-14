@@ -52,6 +52,18 @@ func validate(svcs []models.Service) error {
 				return fmt.Errorf("service %q: dag pattern %q: %w", svc.ID, pattern, err)
 			}
 		}
+
+		for _, pattern := range svc.NonCriticalDAGPatterns {
+			if err := models.ValidateDAGPattern(pattern); err != nil {
+				return fmt.Errorf("service %q: non-critical dag pattern %q: %w", svc.ID, pattern, err)
+			}
+		}
+
+		if svc.HealthCheck != nil {
+			if err := models.ValidateHealthCheck(*svc.HealthCheck); err != nil {
+				return fmt.Errorf("service %q: health_check: %w", svc.ID, err)
+			}
+		}
 	}
 
 	// Checked in a second pass so a service may depend on one defined below it.

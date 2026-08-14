@@ -48,6 +48,27 @@ type ServiceMetrics struct {
 	NextRunAt             *string  `json:"next_run_at"`
 }
 
+// Heartbeat is the result of an out-of-band liveness probe, for services whose
+// health Airflow cannot report on.
+type Heartbeat struct {
+	// Type is "http" or "grpc"; Target is what was probed.
+	Type   string `json:"type"`
+	Target string `json:"target"`
+
+	// Status is "healthy", "down", or "unknown" when the probe itself could not
+	// be carried out. Deliberately narrower than ServiceStatus: a heartbeat
+	// answers "is it answering", nothing more.
+	Status string `json:"status"`
+
+	// LatencyMs is nil when no round trip completed.
+	LatencyMs *int64 `json:"latency_ms"`
+
+	CheckedAt string `json:"checked_at"`
+
+	// Detail is a short operator-facing reason, e.g. "HTTP 503".
+	Detail *string `json:"detail"`
+}
+
 // ServiceResponse is the full service item for GET /services and GET /services/{id}.
 type ServiceResponse struct {
 	ID        string         `json:"id"`
@@ -58,6 +79,13 @@ type ServiceResponse struct {
 	DAGs      []DAGDetail    `json:"dags,omitempty"`
 	Metrics   ServiceMetrics `json:"metrics"`
 	Note      *string        `json:"note"`
+
+	// StatusReason is a short phrase naming what is wrong, e.g. "uk-forecast-clouds
+	// failing (non-critical)". Nil when the service is well.
+	StatusReason *string `json:"status_reason"`
+
+	// Heartbeat is absent for services with no health_check configured.
+	Heartbeat *Heartbeat `json:"heartbeat,omitempty"`
 }
 
 // ServiceListResponse is the full response body for GET /services.

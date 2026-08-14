@@ -7,6 +7,7 @@ export const SERVICE_STATUSES: ServiceStatus[] = [
   'running',
   'paused',
   'unknown',
+  'planned',
 ]
 
 export const STATUS_LABELS: Record<ServiceStatus, string> = {
@@ -16,6 +17,7 @@ export const STATUS_LABELS: Record<ServiceStatus, string> = {
   running: 'Running',
   paused: 'Paused',
   unknown: 'Unknown',
+  planned: 'Coming soon',
 }
 
 /** Statuses an operator should act on — drives the alert bar's tone. */
@@ -31,6 +33,7 @@ export function countByStatus(services: Service[]): Record<ServiceStatus, number
     running: 0,
     paused: 0,
     unknown: 0,
+    planned: 0,
   }
   for (const service of services) counts[service.status] += 1
   return counts

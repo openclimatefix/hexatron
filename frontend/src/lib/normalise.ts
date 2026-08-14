@@ -1,5 +1,13 @@
 import { SERVICE_STATUSES } from '@/lib/status'
-import type { Dag, DagRun, DagRunState, Metrics, Service, ServiceStatus } from '@/lib/types'
+import type {
+  Dag,
+  DagRun,
+  DagRunState,
+  Heartbeat,
+  Metrics,
+  Service,
+  ServiceStatus,
+} from '@/lib/types'
 
 /**
  * Defensive parsing of API responses. The backend is expected to send the
@@ -90,6 +98,7 @@ function normaliseDag(raw: unknown): Dag | null {
       .map((run) => normaliseRun(run, dagId))
       .filter((run): run is DagRun => run !== null),
     metrics: normaliseMetrics(d.metrics),
+    airflow_url: str(d.airflow_url),
   }
 }
 
@@ -167,6 +176,34 @@ export function aggregateMetrics(dags: Dag[]): Metrics {
   }
 }
 
+/**
+ * Absent for most services, so this returns null rather than an empty shell —
+ * "no heartbeat configured" and "heartbeat that told us nothing" are different
+ * things and the card renders them differently.
+ */
+function normaliseHeartbeat(raw: unknown): Heartbeat | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const h = raw as Record<string, unknown>
+
+  const target = str(h.target)
+  if (!target) return null
+
+  // The backend speaks the wider status vocabulary ("failed"); reuse the same
+  // alias table rather than a second mapping that could drift from it.
+  const mapped = toServiceStatus(h.status)
+  const status: Heartbeat['status'] =
+    mapped === 'healthy' || mapped === 'down' ? mapped : 'unknown'
+
+  return {
+    type: str(h.type) === 'grpc' ? 'grpc' : 'http',
+    target,
+    status,
+    latency_ms: num(h.latency_ms),
+    checked_at: str(h.checked_at),
+    detail: str(h.detail),
+  }
+}
+
 export function normaliseService(raw: unknown): Service | null {
   if (typeof raw !== 'object' || raw === null) return null
   const s = raw as Record<string, unknown>
@@ -176,8 +213,6 @@ export function normaliseService(raw: unknown): Service | null {
   const dags = arr(s.dags)
     .map(normaliseDag)
     .filter((dag): dag is Dag => dag !== null)
-
-  console.log('SERVICE_STATUSES', s.name)
 
   return {
     id,
@@ -190,6 +225,8 @@ export function normaliseService(raw: unknown): Service | null {
     // service has no DAGs of its own to roll up.
     metrics: dags.length > 0 ? aggregateMetrics(dags) : normaliseMetrics(s.metrics),
     note: str(s.note),
+    status_reason: str(s.status_reason),
+    heartbeat: normaliseHeartbeat(s.heartbeat),
   }
 }
 

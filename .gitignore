@@ -10,3 +10,7 @@ dist/
 build/
 
 .DS_Store
+
+# Editor / tooling local state
+.idea/
+.claude/settings.local.json

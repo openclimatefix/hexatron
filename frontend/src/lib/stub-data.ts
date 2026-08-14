@@ -131,6 +131,7 @@ function dag(dagId: string, displayName: string, runs: DagRun[], options: DagOpt
     is_paused: false,
     timetable_summary: 'hourly',
     next_dagrun_logical_date: null,
+    airflow_url: null,
     runs,
     ...overrides,
     // Derived rather than hand-set, so changing a run pattern can't leave the
@@ -153,9 +154,16 @@ function dag(dagId: string, displayName: string, runs: DagRun[], options: DagOpt
   }
 }
 
-/** Service metrics roll up from the DAGs, exactly as they do for live data. */
-function service(base: Omit<Service, 'metrics'>): Service {
-  return { ...base, metrics: aggregateMetrics(base.dags) }
+/**
+ * Service metrics roll up from the DAGs, exactly as they do for live data.
+ * `heartbeat` is optional here because most services have no health_check;
+ * omitting it is the common case, not an oversight.
+ */
+function service(
+  base: Omit<Service, 'metrics' | 'heartbeat' | 'status_reason'> &
+    Partial<Pick<Service, 'heartbeat' | 'status_reason'>>,
+): Service {
+  return { heartbeat: null, status_reason: null, ...base, metrics: aggregateMetrics(base.dags) }
 }
 
 export const STUB_SERVICES: Service[] = [
@@ -282,33 +290,14 @@ export const STUB_SERVICES: Service[] = [
     id: 'wind-forecast',
     name: 'Wind Forecast',
     category: 'Forecast',
-    status: 'down',
+    status: 'planned',
     depends_on: [],
-    note: 'Upstream feed unavailable — next run blocked',
-    dags: [
-      dag(
-        'wind_forecast_national',
-        'Wind Forecast (National)',
-        series('wind_forecast_national', 'FFSFFFFSSS', {
-          lastRunOffset: -95,
-          intervalMinutes: 60,
-          baseDurationSeconds: 230,
-          latestDurationSeconds: null,
-        }),
-        {
-          next_dagrun_logical_date: null,
-          nextRunAt: null,
-          totalRuns: 46,
-          failedRuns: 18,
-          avgDurationSeconds: 230,
-          latestDurationSeconds: null,
-        },
-      ),
-    ],
+    note: null,
+    dags: [],
   }),
   service({
     id: 'data-platform',
-    name: 'DP',
+    name: 'Data Platform',
     category: 'Platform',
     status: 'healthy',
     depends_on: ['solar-forecast', 'wind-forecast', 'consumer'],
